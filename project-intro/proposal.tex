@@ -81,8 +81,9 @@ We would like access to at least 4 GPUs / worker nodes to allow us to test some 
 For evaluating our project we plan to do the following:
 \begin{itemize}
   \item Measure how rank of weights, gradients, embeddings changes as width/depth/epochs increases.
+  \item Measure memory required for trainable parameters, activations, and gradients.
   \item Measure throughput, latency during parameter update.
-  \item Test on different real-world architectures and datasets.
+  \item Test on different real-world architectures (ResNet-50, VGG-19, etc) and datasets (CIFAR100, ImageNet).
 \end{itemize}
 
 Overall our timeline is:

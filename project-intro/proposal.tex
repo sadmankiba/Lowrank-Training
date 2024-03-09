@@ -26,8 +26,9 @@ Training modern neural network-based models is becoming increasingly challenging
 
 Recent studies describe a rank diminishing phenomenon happening across different matrix structures (Weights, Gradients, Embeddings) used during the training process \cite{huh2023simplicitybias}, \cite{9782552}, \cite{le2022training}. These observations suggest the possibility of performing training efficiently in lower dimensional spaces. By leveraging on this idea, some popular approaches have been developed recently. For instance, low-rank adaptation (LoRA  \cite{Hu2021LoRA} and ReLoRA \cite{lialin2023relora}) perform fine-tunning and full training respectively by reparametrizing the weight matrices $W$ as a factorization of two low-rank matrices $A$ and $B$. GaLore \cite{zhao2024galore} exploits the low-rank property of weight gradients by performing the optimization phase in a compact space.
 
-Among the distributed training techniques for large models, data parallelism and pipeline parallelism are two of the most representative ones. In data parallelism, the model is replicated across multiple nodes. Weights learned in each node is communicated regularly and averaged before next iterations. The averaging step might require a blocking update and a lot of communication. Several synchronous \cite{pytorch-ddp} and asynchronous techniques exist to reduce the waittime. Another approach is to split the model layers across multiple nodes. It requires less communication as only the weights intermediate to the layer splits need to be communicated. However, nodes has to receive weights from another node, that introduces waiting times known as bubbles. So, pipeline parallelism techniques, such as GPipe \cite{gpipe}, splits the batches into microbatches and employs a pipeline among the nodes for training the microbatches. Pipedream \cite{pipedream} keeps the pipeline full by sharing weights at earlier stage. In this work, we propose to improve training efficiency by employing data parallelism and pipeline parallelism techniques to current low-rank training methods.
+Among the distributed training techniques for large models, data parallelism and pipeline parallelism are two of the most representative ones. In data parallelism, the model is replicated across multiple nodes. In pipeline parallelism techniques, such as GPipe \cite{gpipe}, the model layers are split among nodes and a pipeline is employed among the nodes for training the batches. In this work, we propose to improve training efficiency by employing data parallelism and pipeline parallelism techniques to current low-rank training methods. We aim to explore the advantages of distributing the training process of ReLoRA and GaLore across multiple GPUs, and how this can be used to improve the training process of large models.
 
+On a different research line, different parallelism approaches exist, model and data parallel being two of the most representative ones. In this work we propose to improve training efficiency by developing an ad-hoc parallel approach to complement the efficiency of current low-rank training methods. 
 
 Upon literature review, we have found that LoRA allows for more flexible use-cases more than the original fine-tuning-alternative use-case. We plan to experiment with the git source code of these examples (cited in related works) and later come up with some sort of improvement, reimplementation, or new application.
 
@@ -35,7 +36,11 @@ The main question that we are tackling is "what is the advantage of making LoRA 
 
 Our first and simplest idea is to take the original LoRA architecture and use methods that we have learned in class to implement our own version of implementing LoRA training in parallel. It should not take too much work to take assignment 2 and apply it towards LoRA specifically.
 
-We hope to compare our parallel LoRA version with related works such as LTE to compare performance and their different use cases. This discussion will be much like the discussion questions in class where we compare separate but similar papers. We will demonstrate the performance comparison using various open-source datasets. 
+We hope to compare our parallel LoRA version with related works such as LTE to compare performance and their different use cases. This discussion will be much like the discussion questions in class where we compare separate but similar papers. We will demonstrate the performance comparison using various open-source datasets.
+
+We hope to further explore alternative use cases for LoRA beyond what it was originally proposed for. Our related works section goes into much more detail about accelerating the efficiency of LoRA training, using LoRA architecture for tasks other than fine tuning, or ways using multiple LoRA models across distributed networks can allow for new ways that a large user base could interact with the same model.
+
+We also hope to have time to explore example use cases where this work is valuable in practical applications, such as medical image analysis. For example, we could make a proof of concept for simple medical image analysis, or FedLoRA that combines LoRA with Federated Learning, which could be very useful for hospitals to preserve data privacy.
  
 \section{Related Work}
 The original proposed LoRA \cite{Hu2021LoRA} is in the field of Parameter-Efficient Fine-Tuning for the purposes of an alternative to full fine-tuning. Most recently this group proposed Lora-The-Explorer, which uses parallel LoRA training for the full training from scratch as a pretraining task. \cite{huh2024training}
@@ -46,6 +51,8 @@ LoraRetriever \cite{zhao2024loraretriever} reminded us of the INFaaS paper, wher
 
 GaLore \cite{zhao2024galore}, released on Wednesday this week mentions that "While there has been significant progress in reducing memory requirements during fine-tuning (e.g., LORA), they do not apply for pre-training LLMs." This is interesting because the LTE had proposed a method of using multiple GPUs with LoRA to pre-train a network. It is not just one GPU like GaLore, but it is using LoRA as a tool for pre-training.
 
+In data parallelism, weights learned in each node is communicated regularly and averaged before next iterations. The averaging step might require a blocking update and a lot of communication. Several synchronous \cite{pytorch-ddp} and asynchronous techniques exist to reduce the waittime. Another approach is to split the model layers across multiple nodes. It requires less communication as only the weights intermediate to the layer splits need to be communicated. However, nodes has to receive weights from another node, that introduces waiting times known as bubbles. So, pipeline parallelism techniques splits the batches into microbatches and uses a pipeline among the nodes for training the microbatches. Pipedream \cite{pipedream} keeps the pipeline full by sharing weights at earlier stage.
+
 \section{Timeline and Evaluation Plan}
 
 We would like access to at least 4 GPUs / worker nodes to allow us to test some form of distributed parallel training. The ability to scale further over more machines would be ideal, but maybe unrealistic and not necessary. For efficiency's sake, not sure if 1 GPU with 4 docker containers like assignment 2 would work. That would take up a lot of GPU memory, might be easier and more accurate to just have multiple GPUs.
@@ -53,8 +60,9 @@ We would like access to at least 4 GPUs / worker nodes to allow us to test some 
 For evaluating our project we plan to do the following:
 \begin{itemize}
   \item Measure how rank of weights, gradients, embeddings changes as width/depth/epochs increases.
+  \item Measure memory required for trainable parameters, activations, and gradients.
   \item Measure throughput, latency during parameter update.
-  \item Test on different real-world architectures and datasets.
+  \item Test on different real-world architectures (ResNet-50, VGG-19, etc) and datasets (CIFAR100, ImageNet).
 \end{itemize}
 
 Overall our timeline is:

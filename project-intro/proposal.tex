@@ -1,0 +1,100 @@
+\documentclass[pdftex,twocolumn,10pt,letterpaper]{article}
+\usepackage{graphicx, times}
+\usepackage{lipsum}
+
+\setlength{\textheight}{9.0in}
+\setlength{\columnsep}{0.25in}
+\setlength{\textwidth}{6.50in}
+\setlength{\topmargin}{0.0in}
+\setlength{\headheight}{0.0in}
+\setlength{\headsep}{0.0in}
+
+\begin{document}
+
+\title{Distributed Parallel Low-Rank Training}
+\author{Ivan Jaen-Marquez (ivanjaenm), Laik Ruetten (lruetten), \\ Sadman Sakib (sadmankiba), Zheyang Xiong (zxiong44)}
+
+\date{}
+
+\interfootnotelinepenalty=10000
+
+\maketitle
+
+\section{Introduction}
+
+Training modern neural network-based models is becoming increasingly challenging as there is a tendency to massively increase its number of parameters in order to achieve state-of-the-art performance on multiple tasks.
+
+Recent studies describe a rank diminishing phenomenon happening across different matrix structures (Weights, Gradients, Embeddings) used during the training process \cite{huh2023simplicitybias}, \cite{9782552}, \cite{le2022training}. These observations suggest the possibility of performing training efficiently in lower dimensional spaces. By leveraging on this idea, some popular approaches have been developed recently. For instance, low-rank adaptation (LoRA  \cite{Hu2021LoRA} and ReLoRA \cite{lialin2023relora}) perform fine-tunning and full training respectively by reparametrizing the weight matrices $W$ as a factorization of two low-rank matrices $A$ and $B$. GaLore \cite{zhao2024galore} exploits the low-rank property of weight gradients by performing the optimization phase in a compact space.
+
+On a different research line, different parallelism approaches exist, model and data parallel being two of the most representative ones. In this work we propose to improve training efficiency by developing an ad-hoc parallel approach to current low-rank training methods.
+
+
+Upon literature review, we have found that LoRA allows for more flexible use-cases more than the original fine-tuning-alternative use-case. We plan to experiment with the git source code of these examples (cited in related works) and later come up with some sort of improvement, reimplementation, or new application.
+
+The main question that we are tackling is "what is the advantage of making LoRA distributed anyway?" Part of the advantage of LoRA is that we can fine tune a large model on a simpler lower rank set of parameters. What can be gained if we scale LoRA training up across multiple GPUs? Is there any advantage to the speedup of distributing the training other than the pure sake of speedup? Does this up-scaling allow for any new capabilities to become feasible? Are there any emergent properties?
+
+Our first and simplest idea is to take the original LoRA architecture and use methods that we have learned in class to implement our own version of implementing LoRA training in parallel. It should not take too much work to take assignment 2 and apply it towards LoRA specifically.
+
+We hope to compare our parallel LoRA version with related works such as LTE to compare performance and their different use cases. This discussion will be much like the discussion questions in class where we compare separate but similar papers.
+
+We hope to further explore alternative use cases for LoRA beyond what it was originally proposed for. Our related works section goes into much more detail about accelerating the efficiency of LoRA training, using LoRA architecture for tasks other than fine tuning, or ways using multiple LoRA models across distributed networks can allow for new ways that a large user base could interact with the same model.
+
+We also hope to have time to explore example use cases where this work is valuable in practical applications, such as medical image analysis. For example, we could make a proof of concept for simple medical image analysis, or FedLoRA combines LoRA with Federated Learning, which could be very useful for hospitals to preserve data privacy.
+ 
+\section{Related Work}
+% LoRA
+\cite{Hu2021LoRA}
+The original proposed LoRA is in the field of Parameter-Efficient Fine-Tuning for the purposes of an alternative to full fine-tuning.
+
+% LTE
+\cite{huh2024training}
+Most recently this group proposed Lora-The-Explorer, which uses parallel LoRA training for the full training from scratch as a pretraining task. 
+
+% pFedLoRA
+\cite{yi2023fedlora}
+% What is Federated Learning
+\cite{Rieke2019FederatedLearning}
+Federated LoRA is very interesting. It utilizes the distributed nature of Federated Learning to provide a LoRA at each individual worker rather than a copy of the full model. This allows individual workers to not need high end training clusters, and also allows them to keep their data private. The only thing they need to provide to the server is the gradient updates, not the data itself. This helps improve privacy and would especially be useful to the healthcare industry.
+
+% ReLoRA
+\cite{lialin2023relora}
+Not much to say about this one, but was another citation from within LTE. Was simply an improvement upon LoRA training efficiency. Not much to do with distributed systems.
+
+% LoraRetriever
+\cite{zhao2024loraretriever}
+LoraRetriever reminded us of the INFaaS paper, where individual users have different desires for what they want to use the foundation model for, so different LoRAs are trained and provided depending on the user prompts. 
+
+% GaLore
+\cite{zhao2024galore}
+Even just Wednesday this week at the time of writing, a new paper that mentions LoRA has been released. One thing they mention is "While there has been significant progress in reducing memory requirements during fine-tuning (e.g., LORA), they do not apply for pre-training LLMs." This is interesting because the LTE had proposed a method of using multiple GPUs with LoRA to pre-train a network. It is not just one GPU like GaLore, but it is using LoRA as a tool for pre-training.
+
+% Use cases
+\cite{liu2024fingpt}
+Here is an example of a use case for LoRA in finance models.
+
+\cite{zhu2023melo}
+Here is an example of a use case for LoRA in medical image analysis models.
+
+\section{Timeline and Evaluation Plan}
+
+We would like access to at least 4 GPUs / worker nodes to allow us to test some form of distributed parallel training. The ability to scale further over more machines would be ideal, but maybe unrealistic and not necessary. For efficiency's sake, not sure if 1 GPU with 4 docker containers like assignment 2 would work. That would take up a lot of GPU memory, might be easier and more accurate to just have multiple GPUs.
+
+For evaluating our project we plan to do the following:
+\begin{itemize}
+  \item Measure how rank of weights, gradients, embeddings changes as width/depth/epochs increases.
+  \item Measure throughput, latency during parameter update.
+  \item Test on different real-world architectures and datasets.
+\end{itemize}
+
+Overall our timeline is:
+
+\begin{itemize}
+  \item Nov 1: Run experiments 
+  \item Dec 15: Write Final Report
+\end{itemize}
+
+{
+\bibliographystyle{abbrv}
+\bibliography{ref}
+}
+\end{document}

@@ -26,7 +26,7 @@ Training modern neural network-based models is becoming increasingly challenging
 
 Recent studies describe a rank diminishing phenomenon happening across different matrix structures (Weights, Gradients, Embeddings) used during the training process \cite{huh2023simplicitybias}, \cite{9782552}, \cite{le2022training}. These observations suggest the possibility of performing training efficiently in lower dimensional spaces. By leveraging on this idea, some popular approaches have been developed recently. For instance, low-rank adaptation (LoRA  \cite{Hu2021LoRA} and ReLoRA \cite{lialin2023relora}) perform fine-tunning and full training respectively by reparametrizing the weight matrices $W$ as a factorization of two low-rank matrices $A$ and $B$. GaLore \cite{zhao2024galore} exploits the low-rank property of weight gradients by performing the optimization phase in a compact space.
 
-On a different research line, different parallelism approaches exist, model and data parallel being two of the most representative ones. In this work we propose to improve training efficiency by developing an ad-hoc parallel approach to current low-rank training methods.
+Among the distributed training techniques for large models, data parallelism and pipeline parallelism are two of the most representative ones. In data parallelism, the model is replicated across multiple nodes. Weights learned in each node is communicated regularly and averaged before next iterations. The averaging step might require a blocking update and a lot of communication. Several synchronous \cite{pytorch-ddp} and asynchronous techniques exist to reduce the waittime. Another approach is to split the model layers across multiple nodes. It requires less communication as only the weights intermediate to the layer splits need to be communicated. However, nodes has to receive weights from another node, that introduces waiting times known as bubbles. So, pipeline parallelism techniques, such as GPipe \cite{gpipe}, splits the batches into microbatches and employs a pipeline among the nodes for training the microbatches. Pipedream \cite{pipedream} keeps the pipeline full by sharing weights at earlier stage. In this work, we propose to improve training efficiency by employing data parallelism and pipeline parallelism techniques to current low-rank training methods.
 
 
 Upon literature review, we have found that LoRA allows for more flexible use-cases more than the original fine-tuning-alternative use-case. We plan to experiment with the git source code of these examples (cited in related works) and later come up with some sort of improvement, reimplementation, or new application.
@@ -35,45 +35,16 @@ The main question that we are tackling is "what is the advantage of making LoRA 
 
 Our first and simplest idea is to take the original LoRA architecture and use methods that we have learned in class to implement our own version of implementing LoRA training in parallel. It should not take too much work to take assignment 2 and apply it towards LoRA specifically.
 
-We hope to compare our parallel LoRA version with related works such as LTE to compare performance and their different use cases. This discussion will be much like the discussion questions in class where we compare separate but similar papers.
-
-We hope to further explore alternative use cases for LoRA beyond what it was originally proposed for. Our related works section goes into much more detail about accelerating the efficiency of LoRA training, using LoRA architecture for tasks other than fine tuning, or ways using multiple LoRA models across distributed networks can allow for new ways that a large user base could interact with the same model.
-
-We also hope to have time to explore example use cases where this work is valuable in practical applications, such as medical image analysis. For example, we could make a proof of concept for simple medical image analysis, or FedLoRA combines LoRA with Federated Learning, which could be very useful for hospitals to preserve data privacy.
+We hope to compare our parallel LoRA version with related works such as LTE to compare performance and their different use cases. This discussion will be much like the discussion questions in class where we compare separate but similar papers. We will demonstrate the performance comparison using various open-source datasets. 
  
 \section{Related Work}
-% LoRA
-\cite{Hu2021LoRA}
-The original proposed LoRA is in the field of Parameter-Efficient Fine-Tuning for the purposes of an alternative to full fine-tuning.
+The original proposed LoRA \cite{Hu2021LoRA} is in the field of Parameter-Efficient Fine-Tuning for the purposes of an alternative to full fine-tuning. Most recently this group proposed Lora-The-Explorer, which uses parallel LoRA training for the full training from scratch as a pretraining task. \cite{huh2024training}
 
-% LTE
-\cite{huh2024training}
-Most recently this group proposed Lora-The-Explorer, which uses parallel LoRA training for the full training from scratch as a pretraining task. 
+Federated LoRA utilizes the distributed nature of Federated Learning to provide a LoRA at each individual worker rather than a copy of the full model \cite{yi2023fedlora} \cite{Rieke2019FederatedLearning}. This allows individual workers to not need high end training clusters, and also allows them to keep their data private. The only thing they need to provide to the server is the gradient updates, not the data itself. This helps improve privacy and would especially be useful to the healthcare industry.
 
-% pFedLoRA
-\cite{yi2023fedlora}
-% What is Federated Learning
-\cite{Rieke2019FederatedLearning}
-Federated LoRA is very interesting. It utilizes the distributed nature of Federated Learning to provide a LoRA at each individual worker rather than a copy of the full model. This allows individual workers to not need high end training clusters, and also allows them to keep their data private. The only thing they need to provide to the server is the gradient updates, not the data itself. This helps improve privacy and would especially be useful to the healthcare industry.
+LoraRetriever \cite{zhao2024loraretriever} reminded us of the INFaaS paper, where individual users have different desires for what they want to use the foundation model for, so different LoRAs are trained and provided depending on the user prompts. 
 
-% ReLoRA
-\cite{lialin2023relora}
-Not much to say about this one, but was another citation from within LTE. Was simply an improvement upon LoRA training efficiency. Not much to do with distributed systems.
-
-% LoraRetriever
-\cite{zhao2024loraretriever}
-LoraRetriever reminded us of the INFaaS paper, where individual users have different desires for what they want to use the foundation model for, so different LoRAs are trained and provided depending on the user prompts. 
-
-% GaLore
-\cite{zhao2024galore}
-Even just Wednesday this week at the time of writing, a new paper that mentions LoRA has been released. One thing they mention is "While there has been significant progress in reducing memory requirements during fine-tuning (e.g., LORA), they do not apply for pre-training LLMs." This is interesting because the LTE had proposed a method of using multiple GPUs with LoRA to pre-train a network. It is not just one GPU like GaLore, but it is using LoRA as a tool for pre-training.
-
-% Use cases
-\cite{liu2024fingpt}
-Here is an example of a use case for LoRA in finance models.
-
-\cite{zhu2023melo}
-Here is an example of a use case for LoRA in medical image analysis models.
+GaLore \cite{zhao2024galore}, released on Wednesday this week mentions that "While there has been significant progress in reducing memory requirements during fine-tuning (e.g., LORA), they do not apply for pre-training LLMs." This is interesting because the LTE had proposed a method of using multiple GPUs with LoRA to pre-train a network. It is not just one GPU like GaLore, but it is using LoRA as a tool for pre-training.
 
 \section{Timeline and Evaluation Plan}
 

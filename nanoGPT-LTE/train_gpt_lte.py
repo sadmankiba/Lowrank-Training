@@ -36,6 +36,7 @@ n_head = 1
 n_embd = 64
 dropout = 0.0      # for pretraining 0 is good, for finetuning try 0.1+
 bias = False       # do we use bias inside LayerNorm and Linear layers?
+wrap_with_lte = True
 # adamw optimizer
 learning_rate = 6e-4 # max learning rate
 max_iters = 1000 # total number of training iterations
@@ -55,10 +56,13 @@ gradient_accumulation_steps = 5 * 8 # used to simulate larger batch sizes
 batch_size = 12 # number of contexts to feed. if gradient_accumulation_steps > 1, this is the micro-batch size
 block_size = 32 # context size
 # DDP settings
-backend = 'nccl'
+backend = 'gloo' # nccl threw an error, gloo works fine
 # system
 device = 'cuda:0'
-config = {k: v for k, v in globals().items() if not k.startswith('_') and isinstance(v, (int, float, bool, str))}
+
+config_keys = [k for k,v in globals().items() if not k.startswith('_') and isinstance(v, (int, float, bool, str))]
+exec(open('configurator.py').read()) # overrides from command line or config file
+config = {k: globals()[k] for k in config_keys} # will be useful for logging
 
 ddp = int(os.environ.get('RANK', -1)) != -1 # is this a ddp run?
 if ddp: 
@@ -117,6 +121,8 @@ def wrap_with_lte(model):
     # Wrap it with LTE and print
     lte.misc.use_custom_attention(model)
 
+    module = model.module if ddp else model
+
     model = lte.prepare_model_for_lte(
         model.cuda(),
         lte.LTEConfig.default(
@@ -126,9 +132,9 @@ def wrap_with_lte(model):
         ),
         mode="mhlora",
         strict=True,
-        replica_layers=[model.transformer.wte, model.transformer.wpe, 
-                        model.transformer.h[0].ln_1, model.transformer.h[0].ln_2, 
-                        model.transformer.ln_f],
+        replica_layers=[module.transformer.wte, module.transformer.wpe, 
+                        module.transformer.h[0].ln_1, module.transformer.h[0].ln_2, 
+                        module.transformer.ln_f],
     )
 
     print(model)
@@ -138,8 +144,10 @@ def train_model(model, model_args, train_util):
     iter_num = 0
     best_val_loss = 1e9
 
+    module = model.module if ddp else model
+
     # optimizer
-    optimizer = model.configure_optimizers(weight_decay, learning_rate, (beta1, beta2), device)
+    optimizer = module.configure_optimizers(weight_decay, learning_rate, (beta1, beta2), device)
     checkpoint = None # free up memory
 
     X, Y = train_util.get_batch('train')
@@ -204,7 +212,11 @@ if __name__ == "__main__":
                     bias=bias, vocab_size=vocab_size, dropout=dropout)
     
     model = create_model(model_args)
-    model = wrap_with_lte(model)
+
+    print("wrap_with_lte", wrap_with_lte, type(wrap_with_lte))
+    
+    if wrap_with_lte:
+        model = wrap_with_lte(model)
 
     train_util = TrainUtil(model, config)
 

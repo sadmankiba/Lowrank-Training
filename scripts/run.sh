@@ -1,0 +1,1 @@
+NCCL_IB_DISABLE=1 torchrun --nnodes=2 --node_rank=1 --master_addr=10.10.1.1 --master_port=5600 train_gpt_lte.py

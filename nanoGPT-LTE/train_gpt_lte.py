@@ -211,7 +211,8 @@ def train_model(model, model_args, train_util):
                     'config': config,
                 }
                 print(f"saving checkpoint to {out_dir}")
-                torch.save(checkpoint, os.path.join(out_dir, 'ckpt.pt'))
+                ckpt_name = 'ckpt_lte.pt' if wrap_lte else 'ckpt.pt'
+                torch.save(checkpoint, os.path.join(out_dir, ckpt_name))
             
             # log to to two files, because SIGINT can interrupt when writing one
             new_row = pd.DataFrame({"iter": iter_num, "train_loss": losses['train'].item(), "val_loss": losses['val'].item()}, index=[0])

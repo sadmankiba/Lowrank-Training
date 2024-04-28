@@ -57,7 +57,6 @@ def prepare_model_for_lte(
     
     trainable_parameter_count = 0
     for p in model.parameters():
-        print(p.requires_grad, p.numel())
         if p.requires_grad:
             trainable_parameter_count += p.numel()
 
@@ -67,8 +66,6 @@ def prepare_model_for_lte(
         # nn.Conv2d,
         # nn.Embedding,
     )
-
-    print()
     
     for n, m in model.named_modules():
         # skip unsupported and non-replica layers modules
@@ -81,7 +78,6 @@ def prepare_model_for_lte(
         parent_module, old_module, target_name = _get_submodules(model, n)
         
         for p in old_module.parameters(): 
-            print(p.requires_grad, p.numel())
             if p.requires_grad:
                 converted_parameter_count += p.numel()
 

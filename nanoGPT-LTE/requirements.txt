@@ -2,3 +2,4 @@ torch
 yacs
 einops
 wandb
+pandas

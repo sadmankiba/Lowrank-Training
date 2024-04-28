@@ -15,11 +15,13 @@ $ NCCL_IB_DISABLE=1 torchrun --nnodes=4 --node_rank=2 --master_addr=10.10.1.1 --
 
 import os
 import time
+import math
 from datetime import datetime
 
 import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
+import pandas as pd
 
 from model import GPTConfig, GPT
 from train_util import TrainUtil
@@ -36,7 +38,7 @@ n_head = 1
 n_embd = 64
 dropout = 0.0      # for pretraining 0 is good, for finetuning try 0.1+
 bias = False       # do we use bias inside LayerNorm and Linear layers?
-wrap_with_lte = True
+wrap_lte = True
 # adamw optimizer
 learning_rate = 6e-4 # max learning rate
 max_iters = 1000 # total number of training iterations
@@ -55,6 +57,11 @@ dtype = 'float16'
 gradient_accumulation_steps = 5 * 8 # used to simulate larger batch sizes
 batch_size = 12 # number of contexts to feed. if gradient_accumulation_steps > 1, this is the micro-batch size
 block_size = 32 # context size
+# learning rate decay settings
+decay_lr = True # whether to decay the learning rate
+warmup_iters = 2000 # how many steps to warm up for
+lr_decay_iters = 600000 # should be ~= max_iters per Chinchilla
+min_lr = 6e-5 # minimum learning rate, should be ~= learning_rate/10 per Chinchilla
 # DDP settings
 backend = 'gloo' # nccl threw an error, gloo works fine
 # system
@@ -75,8 +82,10 @@ if ddp:
     
     # world_size number of processes will be training simultaneously, so we can scale
     # down the desired gradient accumulation iterations per process proportionally
-    assert gradient_accumulation_steps % ddp_world_size == 0
-    gradient_accumulation_steps //= ddp_world_size
+    if gradient_accumulation_steps % ddp_world_size == 0:
+        gradient_accumulation_steps //= ddp_world_size
+    else:
+        batch_size //= ddp_world_size
 else: 
     master_process = True
     seed_offset = 0 
@@ -94,6 +103,28 @@ torch.manual_seed(1337 + seed_offset)
 torch.backends.cuda.matmul.allow_tf32 = True # allow tf32 on matmul
 torch.backends.cudnn.allow_tf32 = True # allow tf32 on cudnn
 
+time_str = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+date_str = datetime.now().strftime("%Y-%m-%d")
+
+
+def get_lr(it):
+    '''
+    learning rate decay scheduler (cosine with warmup)
+
+    lr decreases from initial lr gradually to min_lr over lr_decay_iters (generally max_iteration) steps 
+    '''
+    # 1) linear warmup for warmup_iters steps
+    if it < warmup_iters:
+        return learning_rate * it / warmup_iters
+    # 2) if it > lr_decay_iters, return min learning rate
+    if it > lr_decay_iters:
+        return min_lr
+    # 3) in between, use cosine decay down to min learning rate
+    decay_ratio = (it - warmup_iters) / (lr_decay_iters - warmup_iters)
+    assert 0 <= decay_ratio <= 1
+    coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio)) # coeff ranges 0..1
+    return min_lr + coeff * (learning_rate - min_lr)
+
 # logging
 if wandb_log and master_process:
     import wandb
@@ -106,14 +137,12 @@ def create_model(model_args):
     # Create transformer model and print
     gptconf = GPTConfig(**model_args)
     model = GPT(gptconf)
-    print("device:", device)
-    # model.to(device) 
-    model.to("cuda")
+    model.to(device) 
+
     # wrap model into DDP container
     if ddp:
         model = DDP(model) # No device_ids because using single GPU
 
-    print(model)
     return model
 
 
@@ -132,12 +161,11 @@ def wrap_with_lte(model):
         ),
         mode="mhlora",
         strict=True,
-        replica_layers=[module.transformer.wte, module.transformer.wpe, 
-                        module.transformer.h[0].ln_1, module.transformer.h[0].ln_2, 
-                        module.transformer.ln_f],
+        replica_layers=[module.transformer.wte, module.transformer.wpe, module.transformer.ln_f] 
+            + [ module.transformer.h[i].ln_1 for i in range(len(module.transformer.h))]
+            + [ module.transformer.h[i].ln_2 for i in range(len(module.transformer.h))]
     )
 
-    print(model)
     return model
 
 def train_model(model, model_args, train_util):
@@ -153,8 +181,10 @@ def train_model(model, model_args, train_util):
     X, Y = train_util.get_batch('train')
     t0 = time.time()
 
+    log_df = pd.DataFrame(columns=["iter", "train_loss", "val_loss"])
+
     while True: 
-        lr = learning_rate
+        lr = get_lr(iter_num) if decay_lr else learning_rate
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
 
@@ -167,20 +197,26 @@ def train_model(model, model_args, train_util):
                     'iter': iter_num,
                     'train/loss': losses['train'],
                     'val/loss': losses['val'],
+                    'lr': lr,
                 })
-            if losses['val'] < best_val_loss:
+            if (iter_num > 0) and (losses['val'] < best_val_loss):
                 best_val_loss = losses['val']
-                if iter_num > 0:
-                    checkpoint = {
-                        'model': model.state_dict(),
-                        'optimizer': optimizer.state_dict(),
-                        'model_args': model_args,
-                        'iter_num': iter_num,
-                        'best_val_loss': best_val_loss,
-                        'config': config,
-                    }
-                    print(f"saving checkpoint to {out_dir}")
-                    torch.save(checkpoint, os.path.join(out_dir, 'ckpt.pt'))
+                checkpoint = {
+                    'model': model.state_dict(),
+                    'optimizer': optimizer.state_dict(),
+                    'model_args': model_args,
+                    'iter_num': iter_num,
+                    'best_val_loss': best_val_loss,
+                    'config': config,
+                }
+                print(f"saving checkpoint to {out_dir}")
+                torch.save(checkpoint, os.path.join(out_dir, 'ckpt.pt'))
+            
+            # log to to two files, because SIGINT can interrupt when writing one
+            new_row = pd.DataFrame({"iter": iter_num, "train_loss": losses['train'].item(), "val_loss": losses['val'].item()}, index=[0])
+            log_df = pd.concat([log_df, new_row], ignore_index=True) 
+            log_df.to_csv(f"log/{date_str}/{time_str}.csv", index=False)
+            log_df.to_csv(f"log/{date_str}/{time_str}_2.csv", index=False)
 
         for micro_step in range(gradient_accumulation_steps):
             logits, loss = model(X, Y)
@@ -205,20 +241,26 @@ def train_model(model, model_args, train_util):
         if iter_num >= max_iters:
             break
 
-
+def create_log_file():
+    # Log config 
+    config_df = pd.DataFrame([config.values()], columns=config.keys())
+    os.makedirs("log", exist_ok=True)
+    os.makedirs("log/{}".format(date_str), exist_ok=True)
+    config_df.to_csv(f"log/{date_str}/{time_str}_config.csv", index=False)
 
 if __name__ == "__main__":
     model_args = dict(n_layer=n_layer, n_head=n_head, n_embd=n_embd, block_size=block_size,
                     bias=bias, vocab_size=vocab_size, dropout=dropout)
     
     model = create_model(model_args)
-
-    print("wrap_with_lte", wrap_with_lte, type(wrap_with_lte))
     
-    if wrap_with_lte:
+    if wrap_lte:
         model = wrap_with_lte(model)
 
+    print(model)
+
     train_util = TrainUtil(model, config)
+    create_log_file()
 
     train_model(model,  model_args, train_util)
 

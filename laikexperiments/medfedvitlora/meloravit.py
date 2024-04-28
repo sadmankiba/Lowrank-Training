@@ -6,47 +6,42 @@ import argparse
 
 from peft_pretraining import training_utils, args_utils
 
-class LowRankAdapter(nn.Module):
-    def __init__(self, input_dim, intermediate_dim, output_dim):
-        super(LowRankAdapter, self).__init__()
-        # First layer reduces dimension
-        self.down_project = nn.Linear(input_dim, intermediate_dim)
-        # Second layer increases dimension to the number of categories
-        self.up_project = nn.Linear(intermediate_dim, output_dim)
-    
-    def forward(self, x):
-        x = self.down_project(x)
-        x = torch.relu(x)  # Optionally add a non-linearity
-        x = self.up_project(x)
-        return x
+import timm
+import torch
+from lora import LoRA_ViT_timm
+import torch.nn.functional as F
 
+num_categories = 9
 
-class ModifiedViTBlock(nn.Module):
-    def __init__(self, vit_block, bottleneck_dim):
-        super(ModifiedViTBlock, self).__init__()
-        self.vit_block = vit_block
-        self.adapter = LowRankAdapter(vit_block.width, bottleneck_dim)
+#img = torch.randn(16, 3, 224, 224)
+model = timm.create_model('vit_base_patch16_224', pretrained=True)
+lora_vit = LoRA_ViT_timm(vit_model=model, r=4, alpha=4, num_classes=num_categories)
 
-    def forward(self, x):
-        x = self.vit_block(x)
-        x = self.adapter(x)
-        return x
+model = lora_vit.cuda()
 
-import transformers
-from transformers import ViTModel
-model = ViTModel.from_pretrained('google/vit-base-patch16-224-in21k').cuda()
+#logits = lora_vit(img)
+
+#probs = F.softmax(logits, dim=1)
+
+#print(probs)
+
+#preds = torch.argmax(probs, dim=1)
+
+#print(preds)
+
+#import transformers
+#from transformers import ViTModel
+#model = ViTModel.from_pretrained('google/vit-base-patch16-224-in21k').cuda()
 
 #for name, module in model.named_children():
 #    if isinstance(module, transformers.models.vit.modeling_vit.ViTLayer):
 #        # Replace each ViTLayer with a ModifiedViTBlock
 #        setattr(model, name, ModifiedViTBlock(module, bottleneck_dim=64))
 # Assuming 'model' is your pretrained Vision Transformer
-intermediate_dim = 128  # You can tune this parameter
-num_categories = 9
+#intermediate_dim = 128  # You can tune this parameter
 
 # Replace the classifier with the low-rank adapter
-model.fc = LowRankAdapter(768, intermediate_dim, num_categories)
-
+#model.fc = LowRankAdapter(768, intermediate_dim, num_categories)
 
 from tqdm import tqdm
 import numpy as np
@@ -63,7 +58,7 @@ data_flag = 'pathmnist'
 # data_flag = 'breastmnist'
 download = True
 
-NUM_EPOCHS = 0
+NUM_EPOCHS = 5
 BATCH_SIZE = 64
 lr = 0.005
 
@@ -151,7 +146,9 @@ def parse_args(args):
     
     # disable ddp, single_gpu
     parser.add_argument("--single_gpu", default=True, action="store_true")
-    
+   
+    parser.add_argument("-train_type", "-tt", type=str, default="lora", help="lora, full, linear, adapter")
+
     args = parser.parse_args(args)
 
     args = args_utils.check_args_torchrun_main(args)
@@ -201,7 +198,7 @@ for epoch in range(NUM_EPOCHS):
             loss = criterion(outputs.last_hidden_state, targets)
         else:
             targets = targets.squeeze().long()
-            loss = criterion(outputs.pooler_output, targets)
+            loss = criterion(outputs, targets)
 
         loss.backward()
         optimizer.step()
@@ -214,19 +211,34 @@ y_score = torch.tensor([])
 
 data_loader = train_loader_at_eval if split == 'train' else test_loader
 
+from sklearn.metrics import accuracy_score
+
 with torch.no_grad():
     for inputs, targets in data_loader:
         inputs = inputs.cuda()
         outputs = model(inputs)
-        logits = outputs.pooler_output
+        logits = outputs
         outputs_softmax = torch.softmax(logits, dim=-1)
         #outputs = outputs.softmax(dim=-1)
+        y_true  = torch.cat((y_true , targets), 0)
         y_score = torch.cat((y_score, outputs_softmax.cpu()), 0)
 
+    y_true = y_true.detach().numpy()
     y_score = y_score.detach().numpy()
-    
-    evaluator = Evaluator(data_flag, split, size=224)
-    print(y_score.shape)
-    metrics = evaluator.evaluate(y_score)
+   
+    # Use argmax to find the indices of the maximum values in each row
+    y_score = np.argmax(y_score, axis=1)
 
-    print('%s  auc: %.3f  acc: %.3f' % (split, *metrics))
+    # Convert to a column vector
+    y_score = y_score.reshape(-1, 1)
+
+    evaluator = Evaluator(data_flag, split, size=224)
+    print(y_true)
+    print(y_score)
+    #metrics = evaluator.evaluate(y_score)
+
+    accuracy = accuracy_score(y_true, y_score)
+    
+    print("acc: ", accuracy)
+
+    #print('%s  auc: %.3f  acc: %.3f' % (split, *metrics))

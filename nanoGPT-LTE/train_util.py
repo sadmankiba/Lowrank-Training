@@ -5,13 +5,13 @@ import numpy as np
 
 
 class TrainUtil:
-    def __init__(self, model, data_dir, batch_size, block_size, device, eval_iters):
+    def __init__(self, model, config):
         self.model = model
-        self.batch_size = batch_size
-        self.block_size = block_size
-        self.data_dir = data_dir
-        self.device = device
-        self.eval_iters = eval_iters
+        self.batch_size = config["batch_size"]
+        self.block_size = config["block_size"]
+        self.data_dir = os.path.join('data', config["dataset"])
+        self.device = config["device"]
+        self.eval_batches = config["eval_batches"]
 
     def get_batch(self, split):
         # We recreate np.memmap every batch to avoid a memory leak, as per
@@ -36,8 +36,8 @@ class TrainUtil:
         out = {}
         self.model.eval()
         for split in ['train', 'val']:
-            losses = torch.zeros(self.eval_iters)
-            for k in range(self.eval_iters):
+            losses = torch.zeros(self.eval_batches)
+            for k in range(self.eval_batches):
                 X, Y = self.get_batch(split)
                 
                 _, loss = self.model(X, Y)

@@ -74,6 +74,7 @@ config = {k: globals()[k] for k in config_keys} # will be useful for logging
 ddp = int(os.environ.get('RANK', -1)) != -1 # is this a ddp run?
 if ddp: 
     print("Running in DDP mode. Rank:", os.environ['RANK'])
+    config['ddp'] = True
     dist.init_process_group(backend=backend)
     ddp_rank = int(os.environ['RANK'])
     ddp_world_size = int(os.environ['WORLD_SIZE'])
@@ -83,9 +84,7 @@ if ddp:
     # world_size number of processes will be training simultaneously, so we can scale
     # down the desired gradient accumulation iterations per process proportionally
     if gradient_accumulation_steps % ddp_world_size == 0:
-        gradient_accumulation_steps //= ddp_world_size
-    else:
-        batch_size //= ddp_world_size
+        gradient_accumulation_steps //= ddp_world_size    
 else: 
     master_process = True
     seed_offset = 0 
@@ -180,6 +179,7 @@ def train_model(model, model_args, train_util):
 
     X, Y = train_util.get_batch('train')
     t0 = time.time()
+    start_time = time.time()
 
     log_df = pd.DataFrame(columns=["iter", "train_loss", "val_loss"])
 
@@ -198,6 +198,7 @@ def train_model(model, model_args, train_util):
                     'train/loss': losses['train'],
                     'val/loss': losses['val'],
                     'lr': lr,
+                    'total_time': time.time() - start_time,
                 })
             if (iter_num > 0) and (losses['val'] < best_val_loss):
                 best_val_loss = losses['val']

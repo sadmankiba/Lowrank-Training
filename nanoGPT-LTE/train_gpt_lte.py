@@ -59,13 +59,13 @@ grad_clip = 1.0 # clip gradients at this value, or disable if == 0.0
 # wandb logging
 wandb_log = False
 wandb_project = 'Parallel-Lora'
-wandb_run_name = 'shakespeare_char_' + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+
 # data
 dataset = 'shakespeare_char'
 vocab_size = 65
 dtype = 'float16'
 gradient_accumulation_steps = 5 * 8 # used to simulate larger batch sizes
-batch_size = 12 # number of contexts to feed. if gradient_accumulation_steps > 1, this is the micro-batch size
+batch_size = 16 # number of contexts to feed. if gradient_accumulation_steps > 1, this is the micro-batch size
 block_size = 32 # context size
 # learning rate decay settings
 decay_lr = True # whether to decay the learning rate
@@ -229,9 +229,14 @@ def train_model(model, model_args, train_util):
     optimizer = module.configure_optimizers(weight_decay, learning_rate, (beta1, beta2), device)
     checkpoint = None # free up memory
 
+    run_name = dataset + '_' + init_from + '_n_layer_' + str(n_layer) + \
+                f'_wrap_lte_{int(wrap_lte)}' + f'_{lte_mode}' + \
+                f'_freeze_{freeze_n}' 
+
     # logging
     if wandb_log and master_process:
         import wandb
+        wandb_run_name = run_name + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         wandb.init(project=wandb_project, name=wandb_run_name, config=config)
 
     X, Y = train_util.get_batch('train')
@@ -269,11 +274,7 @@ def train_model(model, model_args, train_util):
                     'config': config,
                 }
                 print(f"saving checkpoint to {out_dir}")
-                ckpt_name = 'ckpt'
-                ckpt_name += '_' + dataset
-                ckpt_name += '_' + init_from
-                ckpt_name += f'_wrap_lte_{int(wrap_lte)}'
-                ckpt_name += f'_freeze_{freeze_n}'
+                ckpt_name = 'ckpt_' + run_name
                 ckpt_name += f'_iter_num_{iter_num}.pt'
 
                 torch.save(checkpoint, os.path.join(out_dir, ckpt_name))

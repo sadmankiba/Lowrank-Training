@@ -1,16 +1,7 @@
-# Pretraining GPT-2 runs into CUDA out of memory :'(
-
 # Model (GPT-2)
-n_layer = 12
-n_head = 12
-n_embd = 768
-vocab_size = 50304
-block_size = 1024
-dropout = 0.0
-bias = True
+init_from = "gpt2"
 
 # Training
-init_from = "scratch"
 dataset = "cnn_dailymail"
 max_iters = 101
 lr_decay_iters = 101
@@ -31,7 +22,3 @@ lte_merge_steps = 0
 
 # Logging
 wandb_log = True
-
-
-
-

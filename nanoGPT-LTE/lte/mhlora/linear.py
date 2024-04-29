@@ -34,10 +34,11 @@ class MultiheadLoRALinear(nn.Linear, LTELayer):
         self.scaling = self.lora_alpha / self.lora_r
 
         self.lora_A, self.lora_B = [], []
-
+        
+        device = "cuda:0"
         for _ in range(num_heads):
-            self.lora_A.append(nn.Linear(in_features, lora_r, bias=lora_bias))
-            self.lora_B.append(nn.Linear(lora_r, out_features, bias=lora_bias))
+            self.lora_A.append(nn.Linear(in_features, lora_r, bias=lora_bias, device=device))
+            self.lora_B.append(nn.Linear(lora_r, out_features, bias=lora_bias, device=device))
 
         self.lora_A = nn.ModuleList(self.lora_A)
         self.lora_B = nn.ModuleList(self.lora_B)
@@ -83,3 +84,69 @@ class MultiheadLoRALinear(nn.Linear, LTELayer):
             if self.lora_bias:
                 nn.init.zeros_(lora_B.bias.data)
         return
+    
+    @torch.no_grad()
+    def merge_parameters(self):
+        """ merges all lora parameters into the main module """
+
+        def average_merging(delta_weights, delta_biases=None):
+            """ return mean of input delta weights and biases """
+            if delta_biases is None:
+                return delta_weights.mean(0), delta_biases
+            return delta_weights.mean(0), delta_biases.mean(0)
+        
+        lora_delta_weights, lora_delta_biases = self.compute_delta()     
+        
+        if not self.merged:
+            # register for the first time
+            self.register_buffer('prev_delta_weights', torch.zeros_like(lora_delta_weights.data.clone()))
+
+            if self.lora_bias:
+                self.register_buffer('prev_delta_biases', torch.zeros_like(lora_delta_biases.data.clone()))        
+        
+        # Reset version
+        # Because we keep adding the delW to the main weight
+        # So, we eset the deltaW to 0 once it is merged (called reset version)
+        delta_weight, delta_bias = average_merging(lora_delta_weights, lora_delta_biases)
+
+        self.weight.data += delta_weight.data.clone().to(device=self.weight.device)
+        if self.lora_bias:
+            self.bias.data += delta_bias.data.clone().to(device=self.bias.device)
+
+        self.reset_lora_parameters()
+                
+        self.merged.data[0] = 1
+        return delta_weight, delta_bias
+    
+    @torch.no_grad()
+    def compute_delta(self):
+        """ 
+        computes the delta weight and bias for lora 
+        
+        Basically, returns delW = s * BA
+        """
+        (A, B), (b_A, b_B) = self.get_lora_params()
+
+        delta_weight = self.scaling * B @ A
+        delta_bias = None
+        
+        if self.lora_bias:
+            delta_bias = self.scaling * (B @ b_A.unsqueeze(2) + b_B.unsqueeze(2)).squeeze(2)
+        return delta_weight, delta_bias
+    
+    @torch.no_grad()
+    def get_lora_params(self):
+        """ 
+        retrieves lora paramters 
+        
+        returns stacked B (d x nr) and stacked A (nr x k) 
+        """
+        A = torch.stack([m.weight.to(device=self.main_device) for m in self.lora_A])
+        B = torch.stack([m.weight.to(device=self.main_device) for m in self.lora_B])
+
+        b_A, b_B = None, None
+        if self.lora_bias:
+            b_A = torch.stack([m.bias.to(device=self.main_device) for m in self.lora_A])
+            b_B = torch.stack([m.bias.to(device=self.main_device) for m in self.lora_B])
+        return (A, B), (b_A, b_B)
+

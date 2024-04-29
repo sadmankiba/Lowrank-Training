@@ -1,13 +1,14 @@
-# Pretraining GPT-2 runs into CUDA out of memory :'(
+# Pretraining BabyGPT is also running into CUDA out of memory :'(
 
 # Model (GPT-2)
-n_layer = 12
-n_head = 12
-n_embd = 768
+n_layer = 6
+n_head = 6
+n_embd = 384
 vocab_size = 50304
+batch_size = 16
 block_size = 1024
-dropout = 0.0
-bias = True
+dropout = 0.2
+bias = False
 
 # Training
 init_from = "scratch"

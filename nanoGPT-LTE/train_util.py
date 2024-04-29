@@ -3,6 +3,7 @@ import os
 import torch
 import numpy as np
 import pandas as pd
+import tiktoken
 
 
 class TrainUtil:
@@ -47,3 +48,10 @@ class TrainUtil:
         
         self.model.train()
         return out
+    
+    def gpt2_decode(self, x):
+        if isinstance(x, torch.Tensor):
+            x = x.cpu().tolist()
+        
+        enc = tiktoken.encoding_for_model('gpt2')
+        return enc.decode(x)

@@ -26,6 +26,7 @@ import pandas as pd
 from model import GPTConfig, GPT
 from train_util import TrainUtil
 import lte
+from lte.misc.merge import MergeCondition
 
 # I/O
 out_dir = 'out'
@@ -42,6 +43,12 @@ dropout = 0.0      # for pretraining 0 is good, for finetuning try 0.1+
 bias = False       # do we use bias inside LayerNorm and Linear layers?
 wrap_lte = True
 freeze_n = 0      # freeze first n transformer blocks
+# LTE model settings
+lora_r = 32
+lora_alpha = 4096
+lte_heads = 32
+lte_mode = "mhlora"
+lte_merge_steps = 10
 # adamw optimizer
 learning_rate = 6e-4 # max learning rate
 max_iters = 1000 # total number of training iterations
@@ -192,11 +199,11 @@ def wrap_with_lte(model):
     model = lte.prepare_model_for_lte(
         model.cuda(),
         lte.LTEConfig.default(
-            lora_r=32,
-            lora_alpha=4096,
-            num_heads=32,
+            lora_r=lora_r,
+            lora_alpha=lora_alpha,
+            num_heads=lte_heads,
         ),
-        mode="mhlora",
+        mode=lte_mode,
         strict=True,
         replica_layers=[module.transformer.wte, module.transformer.wpe, module.transformer.ln_f] 
             + [ module.transformer.h[i].ln_1 for i in range(len(module.transformer.h))]
@@ -232,6 +239,7 @@ def train_model(model, model_args, train_util):
     start_time = time.time()
 
     log_df = pd.DataFrame(columns=["iter", "train_loss", "val_loss"])
+    merge_scheduler = MergeCondition(model, merge_steps=lte_merge_steps, method='step')
 
     while True: 
         lr = get_lr(iter_num) if decay_lr else learning_rate
@@ -286,6 +294,8 @@ def train_model(model, model_args, train_util):
         scaler.step(optimizer)
         scaler.update()
         optimizer.zero_grad(set_to_none=True)
+        if lte_merge_steps > 0:
+            merge_scheduler.step()
 
         t1 = time.time()
         dt = t1 - t0
@@ -339,6 +349,6 @@ if __name__ == "__main__":
 
     print(f"Trainable parameters: {trainable_params/1e6:.2f} M", f"Trainable memory: {trainable_memory/1e6:.2f} MB")
 
-    # train_model(model,  model_args, train_util)
+    train_model(model,  model_args, train_util)
 
     generate(model, train_util)

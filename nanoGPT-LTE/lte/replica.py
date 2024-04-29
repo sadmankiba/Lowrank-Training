@@ -17,7 +17,7 @@ class MultiheadReplicaLayer(ReplicaLayer):
     """
 
     def __init__(self, target_module, num_heads, mode="ddp"):
-        super().__init__()
+        super().__init__(target_module)
         self.num_heads = num_heads
         self.replicas = []
         for i in range(num_heads):
@@ -30,6 +30,10 @@ class MultiheadReplicaLayer(ReplicaLayer):
                 )
         self.replicas = nn.ModuleList(self.replicas)
         return
+    
+    def __repr__(self):
+        self._repr = self.replicas[0].__repr__()
+        return f"MultiHeadReplica( {self.num_heads} x {self._repr} )"
 
     def forward(self, inputs):
         """

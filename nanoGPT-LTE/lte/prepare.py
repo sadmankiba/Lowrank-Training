@@ -1,6 +1,7 @@
 import numpy as np
 import torch.nn as nn
 import warnings
+from lte.base import ReplicaLayer
 from lte.replica import MultiheadReplicaLayer
 
 
@@ -10,6 +11,7 @@ def prepare_model_for_lte(
         copy_weights=True, 
         strict=True, 
         replica_layers=[],
+        use_mhreplica=False,
         mode="ddp",
         ):
     """
@@ -20,7 +22,8 @@ def prepare_model_for_lte(
         lora_config (LTEConfigs): the lora config to use
         copy_weights (bool): if True, copy weights from the original model to the new model
         strict (bool): if True, raise an error if not all parameters are converted
-        replica_layers (list): list of modules to convert for standard local-step averaging.
+        replica_layers (list): list of modules to replicate (not linear ones). 
+        use_mhreplica (bool): whether to replicate to multi-heads for standard local-step averaging.
         mode (str): the mode to use. Options are "ddp" and "dmp"
         
     Returns:
@@ -84,11 +87,14 @@ def prepare_model_for_lte(
         dtype = next(old_module.parameters()).dtype
                 
         if m in replica_layers:
-            new_module = MultiheadReplicaLayer(
-                old_module,
-                num_heads=lora_kwargs.num_heads,
-                mode=mode,
-            ).to(dtype=dtype)
+            if use_mhreplica:
+                new_module = MultiheadReplicaLayer(
+                    old_module,
+                    num_heads=lora_kwargs.num_heads,
+                    mode=mode,
+                ).to(dtype=dtype)
+            else:
+                new_module = old_module.to(dtype=dtype)
         else:
             if isinstance(m, nn.Linear):
                 device = next(old_module.parameters()).device

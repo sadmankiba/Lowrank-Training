@@ -41,6 +41,9 @@ class DistributedModelParallelLTE(LTELayer):
         self.lora_B = nn.ModuleList()     
         self.layers = nn.ModuleList()
 
+        # register buffer is used to register a tensor in a nn.module that is 
+        # not a parameter, but you still want it to be a part of the module
+        # so that it is moved to a device, gets saved in a state_dict, etc.
         self.register_buffer('merged', torch.zeros(1))             
         self.register_buffer("lora_initialized", torch.zeros(1))
         return
@@ -53,7 +56,8 @@ class DistributedModelParallelLTE(LTELayer):
         self._repr_B = list(self.lora_B)[0].__repr__()
         
         self.weight.requires_grad_(False)
-        self.bias.requires_grad_(False)
+        if self.bias is not None:
+            self.bias.requires_grad_(False)
 
         for p in self.layers.parameters():
             p.requires_grad_(False)
@@ -72,7 +76,11 @@ class DistributedModelParallelLTE(LTELayer):
         return repr_str
 
     def get_lora_params(self):
-        """ retrieves lora paramters """
+        """ 
+        retrieves lora paramters 
+        
+        returns stacked B (d x nr) and stacked A (nr x k) 
+        """
         A = torch.stack([m.weight.to(device=self.main_device) for m in self.lora_A])
         B = torch.stack([m.weight.to(device=self.main_device) for m in self.lora_B])
 
@@ -87,6 +95,7 @@ class DistributedModelParallelLTE(LTELayer):
         """ merges all lora parameters into the main module """
 
         def average_merging(delta_weights, delta_biases=None):
+            """ return mean of input delta weights and biases """
             if delta_biases is None:
                 return delta_weights.mean(0), delta_biases
             return delta_weights.mean(0), delta_biases.mean(0)
@@ -100,6 +109,12 @@ class DistributedModelParallelLTE(LTELayer):
             if self.lora_bias:
                 self.register_buffer('prev_delta_biases', torch.zeros_like(lora_delta_biases.data.clone()))        
         
+        # Why are we taking delta of deltas?
+        # Because we keep adding the delW to the supermain weight
+        # So, we want to add the change in delW to the supermain weight
+        # Aren't we supposed to reset the deltaW to 0 once it is merged?
+        # We are not doing that here (called reset-less version)
+        # That is why we are taking delta of deltas
         delta_weight, delta_bias = \
             average_merging(
                 lora_delta_weights - self.prev_delta_weights, 
@@ -115,6 +130,7 @@ class DistributedModelParallelLTE(LTELayer):
         if self.lora_bias:
             self.bias.data += delta_bias.data.clone().to(device=self.bias.device)
 
+        # Set the main weights again, but subtract the current delta to balance 
         for i in range(len(self.layers)):
             device = self.layers[i].weight.device
             
@@ -132,6 +148,8 @@ class DistributedModelParallelLTE(LTELayer):
         """
         Applies the LoRA forward pass in parallel
         
+        Not used. 
+
         Args:
             inputs (Tensor): the input tensor
         Returns:

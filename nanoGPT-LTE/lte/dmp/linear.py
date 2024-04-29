@@ -12,7 +12,16 @@ class MultiheadLoRALinear(
         ):
     """
     Multihead Linear layer with LoRA [distributed-model parallel version]
-    
+
+    Variables:
+        weight: Not trainable
+        bias: Not trainable
+        layers (nn.ModuleList): Simply, supermain weight + balancing part
+            In reset-less version, we do not zero out the LoRA matrices after merge. 
+            So, we need a opposite part to balance out the lora matrices.
+            This value will be different for each head. Not trainable. 
+        lora_A, lora_B (nn.ModuleList): LoRA matrices. Trainable.
+
     Args:
         in_features (int): the number of input features
         out_features (int): the number of output features
@@ -76,11 +85,15 @@ class MultiheadLoRALinear(
                 outputs.append(s * lora_B(lora_A(x)) + layer(x))
 
             outputs = torch.cat([x.to(device=inputs.device) for x in outputs])
-        return outputs   
+        return outputs 
 
     @torch.no_grad()
     def compute_delta(self):
-        """ computes the delta weight and bias for lora """
+        """ 
+        computes the delta weight and bias for lora 
+        
+        Basically, returns delW = s * BA
+        """
         (A, B), (b_A, b_B) = self.get_lora_params()
 
         delta_weight = self.scaling * B @ A

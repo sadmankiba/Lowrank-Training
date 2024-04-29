@@ -24,9 +24,13 @@ class LTELayer(nn.Module):
 class ReplicaLayer(nn.Module):
     """
     The base class for Replica layers. Used to universally identify Replica layers.
+
+    Args:
+        target_module (nn.Module): the module to replicate
     """
-    def __init__(self):
+    def __init__(self, target_module):
         super().__init__()
+        self.replicas = [target_module, ]
         self.num_heads = None
         self._repr = None
         return
@@ -34,3 +38,18 @@ class ReplicaLayer(nn.Module):
     def __repr__(self):
         self._repr = self.replicas[0].__repr__()
         return f"Replica( {self.num_heads} x {self._repr} )"
+    
+    def forward(self, inputs):
+        """
+        Args:
+            inputs (torch.Tensor): the input tensor
+        Returns:
+            outputs (torch.Tensor): the output tensor
+        """
+        self.replicas[0].forward(inputs)
+
+    def merge_parameters(self):
+        """
+        Do nothing
+        """
+        pass 

@@ -33,6 +33,7 @@ eval_batches = 10  # Number of batches to evaluate on
 eval_interval = 5  # Interval for wandb logging and checkpointing
 log_interval = 1  # Interval for printing iteration loss and time
 init_from = 'scratch' # 'scratch' or 'resume' or 'gpt2*'
+save_checkpoint = True
 # model
 n_layer = 1
 n_head = 1
@@ -40,6 +41,7 @@ n_embd = 64
 dropout = 0.0      # for pretraining 0 is good, for finetuning try 0.1+
 bias = False       # do we use bias inside LayerNorm and Linear layers?
 wrap_lte = True
+freeze_n = 0      # freeze first n transformer blocks
 # adamw optimizer
 learning_rate = 6e-4 # max learning rate
 max_iters = 1000 # total number of training iterations
@@ -113,12 +115,6 @@ def check_ddp():
 
     tokens_per_iter = gradient_accumulation_steps * ddp_world_size * batch_size * block_size
     print(f"Input tokens processed per iteration will be: {tokens_per_iter}")
-
-def check_wandb():
-    # logging
-    if wandb_log and master_process:
-        import wandb
-        wandb.init(project=wandb_project, name=wandb_run_name, config=config)
 
 def get_lr(it):
     '''
@@ -226,6 +222,11 @@ def train_model(model, model_args, train_util):
     optimizer = module.configure_optimizers(weight_decay, learning_rate, (beta1, beta2), device)
     checkpoint = None # free up memory
 
+    # logging
+    if wandb_log and master_process:
+        import wandb
+        wandb.init(project=wandb_project, name=wandb_run_name, config=config)
+
     X, Y = train_util.get_batch('train')
     t0 = time.time()
     start_time = time.time()
@@ -249,7 +250,7 @@ def train_model(model, model_args, train_util):
                     'lr': lr,
                     'total_time': time.time() - start_time,
                 })
-            if (iter_num > 0) and (losses['val'] < best_val_loss):
+            if (iter_num > 0) and save_checkpoint and (losses['val'] < best_val_loss):
                 best_val_loss = losses['val']
                 checkpoint = {
                     'model': model.state_dict(),
@@ -260,7 +261,13 @@ def train_model(model, model_args, train_util):
                     'config': config,
                 }
                 print(f"saving checkpoint to {out_dir}")
-                ckpt_name = 'ckpt_lte.pt' if wrap_lte else 'ckpt.pt'
+                ckpt_name = 'ckpt'
+                ckpt_name += '_' + dataset
+                ckpt_name += '_' + init_from
+                ckpt_name += f'_wrap_lte_{int(wrap_lte)}'
+                ckpt_name += f'_freeze_{freeze_n}'
+                ckpt_name += f'_iter_num_{iter_num}.pt'
+
                 torch.save(checkpoint, os.path.join(out_dir, ckpt_name))
             
             # log to to two files, because SIGINT can interrupt when writing one
@@ -294,7 +301,6 @@ def train_model(model, model_args, train_util):
 
 if __name__ == "__main__":
     check_ddp()
-    check_wandb()
     
     model_args = dict(n_layer=n_layer, n_head=n_head, n_embd=n_embd, block_size=block_size,
                     bias=bias, vocab_size=vocab_size, dropout=dropout)
@@ -310,7 +316,18 @@ if __name__ == "__main__":
     train_util = TrainUtil(model, config)
     create_log_file()
 
-    # train_model(model,  model_args, train_util)
+    if freeze_n > 0:
+        model.freeze_layers(['transformer.wte', 'transformer.wpe'] + [f'transformer.h.{n}' for n in range(freeze_n)])
 
-    train_util.estimate_loss()
+    # Count number of trainable parameters and their memory
+    trainable_params = 0 
+    trainable_memory = 0
+    for p in model.parameters():
+        if p.requires_grad:
+            trainable_params += p.numel()
+            trainable_memory += p.numel() * p.element_size()
+
+    print(f"Trainable parameters: {trainable_params/1e6:.2f} M", f"Trainable memory: {trainable_memory/1e6:.2f} MB")
+
+    train_model(model,  model_args, train_util)
 

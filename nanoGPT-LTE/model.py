@@ -333,3 +333,16 @@ class GPT(nn.Module):
             idx = torch.cat((idx, idx_next), dim=1)
 
         return idx
+
+    def freeze_layers(self, layers):
+        '''
+        Set grad to false in the layers. 
+
+        Args:
+            layers (list): list of layer names to freeze
+        '''
+        for name, param in self.named_parameters():
+            if any(layer in name for layer in layers):
+                param.requires_grad = False
+
+            

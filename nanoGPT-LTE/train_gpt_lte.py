@@ -32,6 +32,7 @@ out_dir = 'out'
 eval_batches = 10  # Number of batches to evaluate on
 eval_interval = 5  # Interval for wandb logging and checkpointing
 log_interval = 1  # Interval for printing iteration loss and time
+init_from = 'scratch' # 'scratch' or 'resume' or 'gpt2*'
 # model
 n_layer = 1
 n_head = 1
@@ -47,7 +48,7 @@ beta1 = 0.9
 beta2 = 0.95
 grad_clip = 1.0 # clip gradients at this value, or disable if == 0.0
 # wandb logging
-wandb_log = True 
+wandb_log = False
 wandb_project = 'Parallel-Lora'
 wandb_run_name = 'shakespeare_char_' + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
 # data
@@ -71,33 +72,9 @@ config_keys = [k for k,v in globals().items() if not k.startswith('_') and isins
 exec(open('configurator.py').read()) # overrides from command line or config file
 config = {k: globals()[k] for k in config_keys} # will be useful for logging
 
-ddp = int(os.environ.get('RANK', -1)) != -1 # is this a ddp run?
-if ddp: 
-    print("Running in DDP mode. Rank:", os.environ['RANK'])
-    config['ddp'] = True
-    dist.init_process_group(backend=backend)
-    ddp_rank = int(os.environ['RANK'])
-    ddp_world_size = int(os.environ['WORLD_SIZE'])
-    master_process = ddp_rank == 0 # this process will do logging, checkpointing etc.
-    seed_offset = ddp_rank # each process gets a different seed
-    
-    # world_size number of processes will be training simultaneously, so we can scale
-    # down the desired gradient accumulation iterations per process proportionally
-    if gradient_accumulation_steps % ddp_world_size == 0:
-        gradient_accumulation_steps //= ddp_world_size    
-else: 
-    master_process = True
-    seed_offset = 0 
-    ddp_world_size = 1
-
-tokens_per_iter = gradient_accumulation_steps * ddp_world_size * batch_size * block_size
-print(f"Input tokens processed per iteration will be: {tokens_per_iter}")
-
 scaler = torch.cuda.amp.GradScaler(enabled=(dtype == 'float16'))
-
-if master_process:
-    os.makedirs(out_dir, exist_ok=True)
-torch.manual_seed(1337 + seed_offset)
+master_process = False
+ddp = False
 
 torch.backends.cuda.matmul.allow_tf32 = True # allow tf32 on matmul
 torch.backends.cudnn.allow_tf32 = True # allow tf32 on cudnn
@@ -105,6 +82,43 @@ torch.backends.cudnn.allow_tf32 = True # allow tf32 on cudnn
 time_str = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
 date_str = datetime.now().strftime("%Y-%m-%d")
 
+def check_ddp():
+    global master_process
+    global ddp
+    global gradient_accumulation_steps
+
+    ddp = int(os.environ.get('RANK', -1)) != -1 # is this a ddp run?
+    if ddp: 
+        print("Running in DDP mode. Rank:", os.environ['RANK'])
+        config['ddp'] = True
+        dist.init_process_group(backend=backend)
+        ddp_rank = int(os.environ['RANK'])
+        ddp_world_size = int(os.environ['WORLD_SIZE'])
+        master_process = ddp_rank == 0 # this process will do logging, checkpointing etc.
+        seed_offset = ddp_rank # each process gets a different seed
+        
+        # world_size number of processes will be training simultaneously, so we can scale
+        # down the desired gradient accumulation iterations per process proportionally
+        if gradient_accumulation_steps % ddp_world_size == 0:
+            gradient_accumulation_steps //= ddp_world_size    
+    else: 
+        master_process = True
+        seed_offset = 0 
+        ddp_world_size = 1
+
+    torch.manual_seed(1337 + seed_offset)
+
+    if master_process:
+        os.makedirs(out_dir, exist_ok=True)
+
+    tokens_per_iter = gradient_accumulation_steps * ddp_world_size * batch_size * block_size
+    print(f"Input tokens processed per iteration will be: {tokens_per_iter}")
+
+def check_wandb():
+    # logging
+    if wandb_log and master_process:
+        import wandb
+        wandb.init(project=wandb_project, name=wandb_run_name, config=config)
 
 def get_lr(it):
     '''
@@ -124,25 +138,53 @@ def get_lr(it):
     coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio)) # coeff ranges 0..1
     return min_lr + coeff * (learning_rate - min_lr)
 
-# logging
-if wandb_log and master_process:
-    import wandb
-    wandb.init(project=wandb_project, name=wandb_run_name, config=config)
-
-# data loader
-data_dir = os.path.join('data', dataset)
-
 def create_model(model_args):
-    # Create transformer model and print
-    gptconf = GPTConfig(**model_args)
-    model = GPT(gptconf)
-    model.to(device) 
+    if init_from == 'scratch':
+        # Create transformer model and print
+        print("Initializing a new model from scratch")
+        gptconf = GPTConfig(**model_args)
+        model = GPT(gptconf)
+    elif init_from == 'resume':
+        print(f"Resuming training from {out_dir}")
+        # resume training from a checkpoint.
+        ckpt_path = os.path.join(out_dir, 'ckpt.pt')
+        checkpoint = torch.load(ckpt_path, map_location=device)
+        checkpoint_model_args = checkpoint['model_args']
+        # force these config attributes to be equal otherwise we can't even resume training
+        # the rest of the attributes (e.g. dropout) can stay as desired from command line
+        for k in ['n_layer', 'n_head', 'n_embd', 'block_size', 'bias', 'vocab_size']:
+            model_args[k] = checkpoint_model_args[k]
+        # create the model
+        gptconf = GPTConfig(**model_args)
+        model = GPT(gptconf)
+        state_dict = checkpoint['model']
+        # fix the keys of the state dictionary :(
+        # honestly no idea how checkpoints sometimes get this prefix, have to debug more
+        unwanted_prefix = '_orig_mod.'
+        for k,v in list(state_dict.items()):
+            if k.startswith(unwanted_prefix):
+                state_dict[k[len(unwanted_prefix):]] = state_dict.pop(k)
+        model.load_state_dict(state_dict)
+        
+        # TODO: Need to use
+        iter_num = checkpoint['iter_num']
+        best_val_loss = checkpoint['best_val_loss']
+    elif init_from.startswith('gpt2'):
+        print(f"Initializing from OpenAI GPT-2 weights: {init_from}")
+        # initialize from OpenAI GPT-2 weights
+        override_args = dict(dropout=dropout)
+        model = GPT.from_pretrained(init_from, override_args)
+        # read off the created config params, so we can store them into checkpoint correctly
+        for k in ['n_layer', 'n_head', 'n_embd', 'block_size', 'bias', 'vocab_size']:
+            model_args[k] = getattr(model.config, k)
+
 
     # wrap model into DDP container
+    model.to(device) 
     if ddp:
         model = DDP(model) # No device_ids because using single GPU
 
-    return model
+    return model, model_args
 
 
 def wrap_with_lte(model):
@@ -166,6 +208,13 @@ def wrap_with_lte(model):
     )
 
     return model
+
+def create_log_file():
+    # Log config 
+    config_df = pd.DataFrame([config.values()], columns=config.keys())
+    os.makedirs("log", exist_ok=True)
+    os.makedirs("log/{}".format(date_str), exist_ok=True)
+    config_df.to_csv(f"log/{date_str}/{time_str}_config.csv", index=False)
 
 def train_model(model, model_args, train_util):
     iter_num = 0
@@ -243,18 +292,15 @@ def train_model(model, model_args, train_util):
         if iter_num >= max_iters:
             break
 
-def create_log_file():
-    # Log config 
-    config_df = pd.DataFrame([config.values()], columns=config.keys())
-    os.makedirs("log", exist_ok=True)
-    os.makedirs("log/{}".format(date_str), exist_ok=True)
-    config_df.to_csv(f"log/{date_str}/{time_str}_config.csv", index=False)
-
 if __name__ == "__main__":
+    check_ddp()
+    check_wandb()
+    
     model_args = dict(n_layer=n_layer, n_head=n_head, n_embd=n_embd, block_size=block_size,
                     bias=bias, vocab_size=vocab_size, dropout=dropout)
     
-    model = create_model(model_args)
+    # For loading from checkpoint or fine-tuning, take args from the loaded model 
+    model, model_args = create_model(model_args)
     
     if wrap_lte:
         model = wrap_with_lte(model)
@@ -264,5 +310,7 @@ if __name__ == "__main__":
     train_util = TrainUtil(model, config)
     create_log_file()
 
-    train_model(model,  model_args, train_util)
+    # train_model(model,  model_args, train_util)
+
+    train_util.estimate_loss()
 

@@ -9,7 +9,7 @@ eval_batches = 20
 eval_interval = 10
 log_interval = 10
 wandb_log = True
-gradient_accumulation_steps = 5 * 8
+gradient_accumulation_steps = 4
 weight_decay = 1e-1
 
 # LTE

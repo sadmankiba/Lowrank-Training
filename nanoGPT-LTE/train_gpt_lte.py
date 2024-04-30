@@ -75,7 +75,7 @@ min_lr = 6e-5 # minimum learning rate, should be ~= learning_rate/10 per Chinchi
 # DDP settings
 backend = 'gloo' # nccl threw an error, gloo works fine
 # system
-device = 'cuda:0'
+device = 'cuda'
 
 config_keys = [k for k,v in globals().items() if not k.startswith('_') and isinstance(v, (int, float, bool, str))]
 exec(open('configurator.py').read()) # overrides from command line or config file
@@ -200,7 +200,7 @@ def wrap_with_lte(model):
     module = model.module if ddp else model
 
     model = lte.prepare_model_for_lte(
-        model.cuda(),
+        model,
         lte.LTEConfig.default(
             lora_r=lora_r,
             lora_alpha=lora_alpha,
@@ -331,6 +331,7 @@ if __name__ == "__main__":
                     bias=bias, vocab_size=vocab_size, dropout=dropout)
     
     # For loading from checkpoint or fine-tuning, take args from the loaded model 
+    torch.cuda.empty_cache()
     model, model_args = create_model(model_args)
     
     if wrap_lte:

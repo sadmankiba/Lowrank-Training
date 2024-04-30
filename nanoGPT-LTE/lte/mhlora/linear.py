@@ -35,10 +35,9 @@ class MultiheadLoRALinear(nn.Linear, LTELayer):
 
         self.lora_A, self.lora_B = [], []
         
-        device = "cuda:0"
         for _ in range(num_heads):
-            self.lora_A.append(nn.Linear(in_features, lora_r, bias=lora_bias, device=device))
-            self.lora_B.append(nn.Linear(lora_r, out_features, bias=lora_bias, device=device))
+            self.lora_A.append(nn.Linear(in_features, lora_r, bias=lora_bias))
+            self.lora_B.append(nn.Linear(lora_r, out_features, bias=lora_bias))
 
         self.lora_A = nn.ModuleList(self.lora_A)
         self.lora_B = nn.ModuleList(self.lora_B)

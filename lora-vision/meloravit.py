@@ -55,10 +55,13 @@ import medmnist
 from medmnist import INFO, Evaluator
 
 data_flag = 'pathmnist'
-# data_flag = 'breastmnist'
+#data_flag = 'breastmnist'
+#data_flag = 'chestmnist'
+#data_flag = 'pneumoniamnist'
+#data_flag = 'breastmnist'
 download = True
 
-NUM_EPOCHS = 5
+NUM_EPOCHS = 4
 BATCH_SIZE = 64
 lr = 0.005
 
@@ -81,8 +84,6 @@ data_transform = transforms.Compose([
 
 #pil_dataset = DataClass(split='train', download=download)
 
-
-data_flag = 'pathmnist'
 download = True
 
 info = INFO[data_flag]
@@ -211,7 +212,7 @@ y_score = torch.tensor([])
 
 data_loader = train_loader_at_eval if split == 'train' else test_loader
 
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, roc_curve, auc
 
 with torch.no_grad():
     for inputs, targets in data_loader:
@@ -238,7 +239,10 @@ with torch.no_grad():
     #metrics = evaluator.evaluate(y_score)
 
     accuracy = accuracy_score(y_true, y_score)
-    
     print("acc: ", accuracy)
+    fpr, tpr, thresholds = roc_curve(y_true, y_score)
+    auc = auc(fpr, tpr)
+
+    print("acc: ", accuracy, "auc: ", auc)
 
     #print('%s  auc: %.3f  acc: %.3f' % (split, *metrics))

@@ -239,7 +239,7 @@ def train_model(model, model_args, train_util):
     # logging
     if wandb_log and master_process:
         import wandb
-        wandb_run_name = run_name + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        wandb_run_name = run_name + "_" + time_str
         wandb.init(project=wandb_project, name=wandb_run_name, config=config)
 
     X, Y = train_util.get_batch('train')

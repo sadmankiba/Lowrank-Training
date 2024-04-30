@@ -3,13 +3,13 @@ init_from = "gpt2"
 
 # Training
 dataset = "cnn_dailymail"
-max_iters = 101
-lr_decay_iters = 101
+max_iters = 401
+lr_decay_iters = 401
 eval_batches = 20 
-eval_interval = 10
-log_interval = 10
-wandb_log = True
-gradient_accumulation_steps = 4
+eval_interval = 20
+log_interval = 20
+batch_size = 4
+gradient_accumulation_steps = 1 # Because our GPU has only 12 GB memory
 weight_decay = 1e-1
 
 # LTE

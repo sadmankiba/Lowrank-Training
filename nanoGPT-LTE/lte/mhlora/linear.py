@@ -28,7 +28,6 @@ class MultiheadLoRALinear(nn.Linear, LTELayer):
             lora_bias: bool = False,
             use_merge=True,
             ):
-
         nn.Linear.__init__(self, in_features, out_features, bias)
         self.lora_alpha = lora_alpha
         self.lora_r = lora_r

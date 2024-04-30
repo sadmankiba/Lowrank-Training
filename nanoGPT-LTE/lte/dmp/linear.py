@@ -43,7 +43,6 @@ class MultiheadLoRALinear(
             lora_bias: bool = False,
             use_merge=True,
             ):
-
         nn.Linear.__init__(self, in_features, out_features, bias)
         DistributedModelParallelLTE.__init__(
             self, 

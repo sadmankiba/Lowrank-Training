@@ -50,8 +50,7 @@ def prepare_model_for_lte(
         from lte.mhlora.linear import MultiheadLoRALinear
     else:
         raise ValueError(f"mode {mode} not recognized")
-        
-
+    
     lora_kwargs = lora_config.lora
     linear_lora_kwargs = patch_kwargs(lora_kwargs, lora_kwargs.linear)
     orig_linear_lora_alpha = linear_lora_kwargs['lora_alpha']
@@ -86,7 +85,7 @@ def prepare_model_for_lte(
                 converted_parameter_count += p.numel()
 
         dtype = next(old_module.parameters()).dtype
-                
+        
         if m in replica_layers:
             if use_mhreplica:
                 new_module = MultiheadReplicaLayer(

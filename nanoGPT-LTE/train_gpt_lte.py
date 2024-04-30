@@ -205,6 +205,9 @@ def wrap_with_lte(model):
     """
     module = model.module if ddp else model
 
+    # Strict = False because there will be a warning for parameter count mismatch
+    # due to weight tying
+    # This is okay if we do not replace logit with lora
     model = lte.prepare_model_for_lte(
         model,
         lte.LTEConfig.default(
@@ -213,16 +216,16 @@ def wrap_with_lte(model):
             num_heads=lte_heads,
         ),
         mode=lte_mode,
-        strict=True,
+        strict=False,
         use_merge=(lte_merge_steps > 0),
 
         # Always skip embedding and layer normalization layers
         replica_layers=[module.transformer.wte, module.transformer.wpe, module.transformer.ln_f] 
             + [ module.transformer.h[i].ln_1 for i in range(len(module.transformer.h))]
             + [ module.transformer.h[i].ln_2 for i in range(len(module.transformer.h))]
-            + [ module.lm_head] if skip_logit else [] 
-            + [ module.transformer.h[i].mlp.c_fc for i in range(len(module.transformer.h))] if skip_mlp else []
-            + [ module.transformer.h[i].mlp.c_proj for i in range(len(module.transformer.h))] if skip_mlp else []
+            + ( [ module.lm_head] if skip_logit else [] ) 
+            + ( [ module.transformer.h[i].mlp.c_fc for i in range(len(module.transformer.h))] if skip_mlp else [] )
+            + ( [ module.transformer.h[i].mlp.c_proj for i in range(len(module.transformer.h))] if skip_mlp else [] )
     )
 
     return model
@@ -244,9 +247,8 @@ def train_model(model, model_args, train_util):
     optimizer = module.configure_optimizers(weight_decay, learning_rate, (beta1, beta2), device)
     checkpoint = None # free up memory
 
-    run_name = dataset + '_' + init_from + '_n_layer_' + str(config["n_layer"]) + \
-                f'_wrap_lte_{int(wrap_lte)}' + f'_{lte_mode}' + \
-                f'_freeze_{freeze_n}' 
+    run_name = init_from + f'_wrap_lte_{int(wrap_lte)}' + f'_{lte_mode}' \
+                + f'_heads_{lte_heads}' + f'_r_{lora_r}' + f'_alpha_{lora_alpha}' 
 
     # logging
     if wandb_log and master_process:

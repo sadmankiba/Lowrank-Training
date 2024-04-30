@@ -2,11 +2,11 @@
 # Fine-tuning
 
 lte_heads="1 4"
-lora_ranks="1 2 4 8 16 32 64 128"
+lora_ranks="1 4 16 64"
 
 # Without LoRA
 python3 train_gpt_lte.py config/finetune_gpt2_news_lte.py --wrap_lte=False \
-    --max_iters=401 --lr_decay_iters=401 --eval_interval=20
+    --max_iters=201 --lr_decay_iters=201 --eval_interval=10
 
 # With LoRA
 for lte_head in $lte_heads; do

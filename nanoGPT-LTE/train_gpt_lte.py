@@ -34,7 +34,7 @@ eval_batches = 10  # Number of batches to evaluate on
 eval_interval = 5  # Interval for wandb logging and checkpointing
 log_interval = 1  # Interval for printing iteration loss and time
 init_from = 'scratch' # 'scratch' or 'resume' or 'gpt2*'
-save_checkpoint = True
+save_checkpoint = False
 # model
 n_layer = 1
 n_head = 1
@@ -142,6 +142,8 @@ def get_lr(it):
     return min_lr + coeff * (learning_rate - min_lr)
 
 def create_model(model_args):
+    global config 
+
     if init_from == 'scratch':
         # Create transformer model and print
         print("Initializing a new model from scratch")
@@ -157,6 +159,7 @@ def create_model(model_args):
         # the rest of the attributes (e.g. dropout) can stay as desired from command line
         for k in ['n_layer', 'n_head', 'n_embd', 'block_size', 'bias', 'vocab_size']:
             model_args[k] = checkpoint_model_args[k]
+            config[k] = model_args[k]
         # create the model
         gptconf = GPTConfig(**model_args)
         model = GPT(gptconf)
@@ -180,7 +183,7 @@ def create_model(model_args):
         # read off the created config params, so we can store them into checkpoint correctly
         for k in ['n_layer', 'n_head', 'n_embd', 'block_size', 'bias', 'vocab_size']:
             model_args[k] = getattr(model.config, k)
-
+            config[k] = model_args[k]
 
     # wrap model into DDP container
     model.to(device) 
@@ -229,7 +232,7 @@ def train_model(model, model_args, train_util):
     optimizer = module.configure_optimizers(weight_decay, learning_rate, (beta1, beta2), device)
     checkpoint = None # free up memory
 
-    run_name = dataset + '_' + init_from + '_n_layer_' + str(n_layer) + \
+    run_name = dataset + '_' + init_from + '_n_layer_' + str(config["n_layer"]) + \
                 f'_wrap_lte_{int(wrap_lte)}' + f'_{lte_mode}' + \
                 f'_freeze_{freeze_n}' 
 
@@ -243,7 +246,7 @@ def train_model(model, model_args, train_util):
     t0 = time.time()
     start_time = time.time()
 
-    log_df = pd.DataFrame(columns=["iter", "train_loss", "val_loss"])
+    log_df = pd.DataFrame(columns=["iter", "train_loss", "val_loss", "train_time"])
     merge_scheduler = MergeCondition(model, merge_steps=lte_merge_steps, method='step')
 
     while True: 
@@ -255,13 +258,14 @@ def train_model(model, model_args, train_util):
         if iter_num % eval_interval == 0 and master_process:
             losses = train_util.estimate_loss()
             print(f"iter {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+            train_time = time.time() - start_time
             if wandb_log:
                 wandb.log({
                     'iter': iter_num,
                     'train/loss': losses['train'],
                     'val/loss': losses['val'],
                     'lr': lr,
-                    'total_time': time.time() - start_time,
+                    'train_time': train_time,
                 })
             if (iter_num > 0) and save_checkpoint and (losses['val'] < best_val_loss):
                 best_val_loss = losses['val']
@@ -274,13 +278,12 @@ def train_model(model, model_args, train_util):
                     'config': config,
                 }
                 print(f"saving checkpoint to {out_dir}")
-                ckpt_name = 'ckpt_' + run_name
-                ckpt_name += f'_iter_num_{iter_num}.pt'
 
-                torch.save(checkpoint, os.path.join(out_dir, ckpt_name))
+                torch.save(checkpoint, os.path.join(out_dir, "ckpt.pt"))
             
-            # log to to two files, because SIGINT can interrupt when writing one
-            new_row = pd.DataFrame({"iter": iter_num, "train_loss": losses['train'].item(), "val_loss": losses['val'].item()}, index=[0])
+            # log to two files, because SIGINT can interrupt when writing one
+            new_row = pd.DataFrame([[iter_num, losses['train'].item(), 
+                losses['val'].item(), train_time]], columns=log_df.columns)
             log_df = pd.concat([log_df, new_row], ignore_index=True) 
             log_df.to_csv(f"log/{date_str}/{time_str}.csv", index=False)
             log_df.to_csv(f"log/{date_str}/{time_str}_2.csv", index=False)
@@ -321,6 +324,7 @@ def generate(model, train_util):
     print("gen_y", ''.join(train_util.gpt2_decode(gen_y[0])))
 
 if __name__ == "__main__":
+    print("in main")
     check_ddp()
     
     model_args = dict(n_layer=n_layer, n_head=n_head, n_embd=n_embd, block_size=block_size,
@@ -342,14 +346,13 @@ if __name__ == "__main__":
 
     # Count number of trainable parameters and their memory
     trainable_params = 0 
-    trainable_memory = 0
     for p in model.parameters():
         if p.requires_grad:
             trainable_params += p.numel()
-            trainable_memory += p.numel() * p.element_size()
 
-    print(f"Trainable parameters: {trainable_params/1e6:.2f} M", f"Trainable memory: {trainable_memory/1e6:.2f} MB")
+    print(f"Trainable parameters: {trainable_params/1e6:.2f} M")
+    config['trainable_params'] = trainable_params
 
-    train_model(model,  model_args, train_util)
+    train_model(model, model_args, train_util)
 
     generate(model, train_util)

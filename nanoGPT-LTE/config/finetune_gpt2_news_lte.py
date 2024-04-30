@@ -22,3 +22,4 @@ lte_merge_steps = 0
 
 # Logging
 wandb_log = True
+save_checkpoint = False

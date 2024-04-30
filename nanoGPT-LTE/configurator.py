@@ -43,5 +43,7 @@ for arg in sys.argv[1:]:
             # cross fingers
             print(f"Overriding: {key} = {attempt}")
             globals()[key] = attempt
+            print(f"New value: {key} = {globals()[key]}")
         else:
+            print("Unknown config key:", key)
             raise ValueError(f"Unknown config key: {key}")

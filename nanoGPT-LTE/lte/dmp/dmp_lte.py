@@ -35,7 +35,6 @@ class DistributedModelParallelLTE(LTELayer):
         self.lora_alpha = lora_alpha
         self.lora_r = lora_r
         self.lora_bias = lora_bias
-        self.main_device = "cuda:0"
 
         self.lora_A = nn.ModuleList()
         self.lora_B = nn.ModuleList()     
@@ -81,13 +80,14 @@ class DistributedModelParallelLTE(LTELayer):
         
         returns stacked B (d x nr) and stacked A (nr x k) 
         """
-        A = torch.stack([m.weight.to(device=self.main_device) for m in self.lora_A])
-        B = torch.stack([m.weight.to(device=self.main_device) for m in self.lora_B])
+        device=self.lora_A[0].weight.device
+        A = torch.stack([m.weight.to(device=device) for m in self.lora_A])
+        B = torch.stack([m.weight.to(device=device) for m in self.lora_B])
 
         b_A, b_B = None, None
         if self.lora_bias:
-            b_A = torch.stack([m.bias.to(device=self.main_device) for m in self.lora_A])
-            b_B = torch.stack([m.bias.to(device=self.main_device) for m in self.lora_B])
+            b_A = torch.stack([m.bias.to(device=device) for m in self.lora_A])
+            b_B = torch.stack([m.bias.to(device=device) for m in self.lora_B])
         return (A, B), (b_A, b_B)
 
     @torch.no_grad()

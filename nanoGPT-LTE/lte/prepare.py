@@ -13,6 +13,7 @@ def prepare_model_for_lte(
         replica_layers=[],
         use_mhreplica=False,
         mode="ddp",
+        use_merge=False,
         ):
     """
     Convert a model into an LTE model.
@@ -102,7 +103,8 @@ def prepare_model_for_lte(
                 new_module = MultiheadLoRALinear(
                     old_module.in_features,
                     old_module.out_features,
-                    bias=(old_module.bias is not None),                    
+                    bias=(old_module.bias is not None),
+                    use_merge=use_merge,                 
                     **linear_lora_kwargs,
                 ).to(device=device, dtype=dtype)
 

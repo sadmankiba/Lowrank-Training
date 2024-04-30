@@ -41,9 +41,11 @@ n_head = 1
 n_embd = 64
 dropout = 0.0      # for pretraining 0 is good, for finetuning try 0.1+
 bias = False       # do we use bias inside LayerNorm and Linear layers?
+# LTE model settings
 wrap_lte = True
 freeze_n = 0      # freeze first n transformer blocks
-# LTE model settings
+skip_logit = True 
+skip_mlp = True 
 lora_r = 32
 lora_alpha = 4096
 lte_heads = 32
@@ -56,6 +58,12 @@ weight_decay = 1e-1
 beta1 = 0.9
 beta2 = 0.95
 grad_clip = 1.0 # clip gradients at this value, or disable if == 0.0
+# learning rate decay settings
+decay_lr = True # whether to decay the learning rate
+warmup_iters = 0 # how many steps to warm up for, (gradually increase lr to max before decay again)
+lr_decay_iters = 600000 # should be ~= max_iters per Chinchilla
+min_lr = 6e-5 # minimum learning rate, should be ~= learning_rate/10 per Chinchilla
+
 # wandb logging
 wandb_log = False
 wandb_project = 'Parallel-Lora'
@@ -67,11 +75,6 @@ dtype = 'float16'
 gradient_accumulation_steps = 5 * 8 # used to simulate larger batch sizes
 batch_size = 16 # number of contexts to feed. if gradient_accumulation_steps > 1, this is the micro-batch size
 block_size = 32 # context size
-# learning rate decay settings
-decay_lr = True # whether to decay the learning rate
-warmup_iters = 2000 # how many steps to warm up for
-lr_decay_iters = 600000 # should be ~= max_iters per Chinchilla
-min_lr = 6e-5 # minimum learning rate, should be ~= learning_rate/10 per Chinchilla
 # DDP settings
 backend = 'gloo' # nccl threw an error, gloo works fine
 # system
@@ -194,9 +197,12 @@ def create_model(model_args):
 
 
 def wrap_with_lte(model):
-    # Wrap it with LTE and print
-    lte.misc.use_custom_attention(model)
+    """
+    Replaces some layer weights with frozen weight + lora matrices
 
+    The layers passed as replica layer are skipped during replacement. 
+
+    """
     module = model.module if ddp else model
 
     model = lte.prepare_model_for_lte(
@@ -208,9 +214,15 @@ def wrap_with_lte(model):
         ),
         mode=lte_mode,
         strict=True,
+        use_merge=(lte_merge_steps > 0),
+
+        # Always skip embedding and layer normalization layers
         replica_layers=[module.transformer.wte, module.transformer.wpe, module.transformer.ln_f] 
             + [ module.transformer.h[i].ln_1 for i in range(len(module.transformer.h))]
             + [ module.transformer.h[i].ln_2 for i in range(len(module.transformer.h))]
+            + [ module.lm_head] if skip_logit else [] 
+            + [ module.transformer.h[i].mlp.c_fc for i in range(len(module.transformer.h))] if skip_mlp else []
+            + [ module.transformer.h[i].mlp.c_proj for i in range(len(module.transformer.h))] if skip_mlp else []
     )
 
     return model
@@ -284,7 +296,10 @@ def train_model(model, model_args, train_util):
             # log to two files, because SIGINT can interrupt when writing one
             new_row = pd.DataFrame([[iter_num, losses['train'].item(), 
                 losses['val'].item(), train_time]], columns=log_df.columns)
-            log_df = pd.concat([log_df, new_row], ignore_index=True) 
+            if len(log_df) > 0:
+                log_df = pd.concat([log_df, new_row], ignore_index=True) 
+            else: 
+                log_df = new_row
             log_df.to_csv(f"log/{date_str}/{time_str}.csv", index=False)
             log_df.to_csv(f"log/{date_str}/{time_str}_2.csv", index=False)
 

@@ -10,8 +10,8 @@ learning_rate=6e-4
 min_lr=6e-5
 
 # Sweep 
-lte_heads=4 # "1 4"
-lora_ranks=64 # "1 4 16 64"
+lte_heads="1 4"
+lora_ranks="1 4 16 64"
 
 finetune_gpt2() {
     python3 train_gpt_lte.py config/finetune_gpt2_news_lte.py --wrap_lte=False \

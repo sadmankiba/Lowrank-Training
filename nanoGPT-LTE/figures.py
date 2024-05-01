@@ -50,24 +50,43 @@ if __name__ == "__main__":
     x = range(0, 201, 10)
     
     # Plot the line plots
+    handles = []
+    labels = []
     for i, y in enumerate(ys):
         if datafiles[i].has_lte == False:
-            label = "Without LoRA"
+            label = "W/o LoRA"
         else:
-            label = f"{'Parallel-Merge' if datafiles[i].lte_mode == 'dmp' else 'Sequential'}" + \
-                f" (H {datafiles[i].lte_heads} R {datafiles[i].lora_rank})"
+            label = f"{'Par-Merge' if datafiles[i].lte_mode == 'dmp' else 'Seq'}" + \
+                f" (H{datafiles[i].lte_heads} R{datafiles[i].lora_rank})"
         
-        plt.plot(x, y, label=label)
+        line, = plt.plot(x, y, label=label, linewidth=2.5)
+        handles.append(line)
+        labels.append(label)
 
-        # Set y axis limits
-        plt.ylim(6, 10)
+    order = [3, 4, 6, 5, 2, 8, 1, 0, 7] # from highest to lowest loss at end of training
+    ordered_handles = [handles[i] for i in order]
+    ordered_labels = [labels[i] for i in order]
 
-        # Add axis labels
-        plt.xlabel("Iteration")
-        plt.ylabel("Test Loss")
+    #Set font size
+    plt.rcParams.update({'font.size': 16})
 
-        # Add a legend
-        plt.legend()
-        
+    # Set y axis limits
+    plt.ylim(6.5, 10)
+
+    # Add axis labels
+    plt.xlabel("Iteration", fontsize=16)
+    plt.ylabel("Test Loss", fontsize=16)
+
+    # Set font size of ticks
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
+
+    # show legend on the right of the plot 
+    # plt.legend(ordered_handles, ordered_labels, loc='center right', 
+    #             bbox_to_anchor=(1.6, 0.5), fontsize=12)
+    plt.legend(ordered_handles, ordered_labels, loc='upper right', 
+                fontsize=12)
+
     # Show the plot
-    plt.savefig("figures/val_loss.png")
+    plt.savefig("figures/val_loss.png", bbox_inches='tight', dpi=300)
+    plt.savefig("figures/val_loss.pdf", bbox_inches='tight', dpi=300)

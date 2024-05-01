@@ -14,6 +14,7 @@ class MultiheadLoRALinear(nn.Linear, LTELayer):
         lora_r (int): the rank of LoRA 
         lora_alpha (int): the alpha value for LoRA
         lora_bias (bool): whether to use bias for LoRA
+        use_merge (bool): not used. to conform with dmp.
     """
 
     def __init__(
@@ -25,8 +26,8 @@ class MultiheadLoRALinear(nn.Linear, LTELayer):
             lora_r: int = 1,
             lora_alpha: int = 1,
             lora_bias: bool = False,
+            use_merge=True,
             ):
-
         nn.Linear.__init__(self, in_features, out_features, bias)
         self.lora_alpha = lora_alpha
         self.lora_r = lora_r

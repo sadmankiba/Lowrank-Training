@@ -13,6 +13,7 @@ def prepare_model_for_lte(
         replica_layers=[],
         use_mhreplica=False,
         mode="ddp",
+        use_merge=False,
         ):
     """
     Convert a model into an LTE model.
@@ -49,8 +50,7 @@ def prepare_model_for_lte(
         from lte.mhlora.linear import MultiheadLoRALinear
     else:
         raise ValueError(f"mode {mode} not recognized")
-        
-
+    
     lora_kwargs = lora_config.lora
     linear_lora_kwargs = patch_kwargs(lora_kwargs, lora_kwargs.linear)
     orig_linear_lora_alpha = linear_lora_kwargs['lora_alpha']
@@ -85,7 +85,7 @@ def prepare_model_for_lte(
                 converted_parameter_count += p.numel()
 
         dtype = next(old_module.parameters()).dtype
-                
+        
         if m in replica_layers:
             if use_mhreplica:
                 new_module = MultiheadReplicaLayer(
@@ -102,7 +102,8 @@ def prepare_model_for_lte(
                 new_module = MultiheadLoRALinear(
                     old_module.in_features,
                     old_module.out_features,
-                    bias=(old_module.bias is not None),                    
+                    bias=(old_module.bias is not None),
+                    use_merge=use_merge,                 
                     **linear_lora_kwargs,
                 ).to(device=device, dtype=dtype)
 

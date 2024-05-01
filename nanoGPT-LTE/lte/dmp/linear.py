@@ -41,8 +41,8 @@ class MultiheadLoRALinear(
             lora_r: int = 1,
             lora_alpha: int = 1,
             lora_bias: bool = False,
+            use_merge=True,
             ):
-
         nn.Linear.__init__(self, in_features, out_features, bias)
         DistributedModelParallelLTE.__init__(
             self, 
@@ -51,6 +51,8 @@ class MultiheadLoRALinear(
             lora_alpha=lora_alpha,
             lora_r=lora_r,
         )
+
+        self.use_merge = use_merge
 
         for i in range(num_heads):
             device_id = f"cuda:{i % D.num_visible_devices()}"
@@ -71,11 +73,12 @@ class MultiheadLoRALinear(
         if not self.training then the forward pass is the same as the original Linear layer
         and uses the latest merged weights and biases.
         """
-        if not self.training:
+        if self.use_merge and not self.training:
             outputs = F.linear(inputs.to(device=self.weight.device), self.weight, self.bias)
         else:
             if inputs.size(0) % self.num_heads != 0:
-                raise ValueError("During training input size must be divisible by num_heads")
+                raise ValueError("During any training or during eval in without merge " + 
+                                 "input size must be divisible by num_heads")
             xs = inputs.chunk(self.num_heads)
             outputs = []
 

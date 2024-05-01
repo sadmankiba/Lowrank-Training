@@ -26,6 +26,9 @@ datafiles = [
     datafile(True, "dmp", 4, 64, "2024-05-01-00-06-37"), 
 ]
 
+colors = [ 'tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 
+    'tab:brown', 'tab:pink', 'tab:gray', 'tab:olive'] 
+
 def get_measures():
     config_dfs = [None] * len(datafiles)
     data_dfs = [None] * len(datafiles)
@@ -70,7 +73,7 @@ def plot_val_loss():
             label = f"{'Par-Merge' if datafiles[i].lte_mode == 'dmp' else 'Seq'}" + \
                 f" (H{datafiles[i].lte_heads} R{datafiles[i].lora_rank})"
         
-        line, = plt.plot(x, y, label=label, linewidth=2.5)
+        line, = plt.plot(x, y, label=label, linewidth=2.5, color=colors[i])
         handles.append(line)
         labels.append(label)
 
@@ -121,32 +124,34 @@ def plot_mem_time():
             labels.append(f"{'Par-Merge' if datafile.lte_mode == 'dmp' else 'Seq'}" + \
                 f" (H{datafile.lte_heads} R{datafile.lora_rank})")
     
+    plt.clf()
+
     #Set font size
-    plt.rcParams.update({'font.size': 14})
+    plt.rcParams.update({'font.size': 16})
 
     # Create scatter plot
-    plt.scatter(iter_times, params_trained)
+    plt.scatter(iter_times, params_trained, c=colors, s=100)
 
     # Add labels to data points
     label_fontsize=12
     plt.annotate(labels[0], (iter_times[0], params_trained[0]), fontsize=label_fontsize, 
-        ha='center', va='bottom')
+        ha='center', va='bottom', color=colors[0])
     plt.annotate(labels[1], (iter_times[1], params_trained[1]), fontsize=label_fontsize, 
-        xytext=(5, -3), textcoords='offset points')
+        xytext=(5, -3), textcoords='offset points', color=colors[1])
     plt.annotate(labels[2], (iter_times[2], params_trained[2]), fontsize=label_fontsize, 
-        xytext=(5, -3), textcoords='offset points')
+        xytext=(5, -3), textcoords='offset points', color=colors[2])
     plt.annotate(labels[3], (iter_times[3], params_trained[3]), fontsize=label_fontsize, 
-        ha='center', va='bottom')
+        ha='center', va='bottom', color=colors[3])
     plt.annotate(labels[4], (iter_times[4], params_trained[4]), fontsize=label_fontsize, 
-        ha='center', va='bottom')
+        ha='center', va='bottom', color=colors[4])
     plt.annotate(labels[5], (iter_times[5], params_trained[5]), fontsize=label_fontsize, 
-        xytext=(-40, -15), textcoords='offset points')
+        xytext=(-40, -15), textcoords='offset points', color=colors[5])
     plt.annotate(labels[6], (iter_times[6], params_trained[6]), fontsize=label_fontsize, 
-        ha='center', va='bottom', xytext=(0.01, 3), textcoords='offset points')
+        ha='center', va='bottom', xytext=(0.01, 3), textcoords='offset points', color=colors[6])
     plt.annotate(labels[7], (iter_times[7], params_trained[7]), fontsize=label_fontsize, 
-        ha='center', va='bottom', xytext=(0, 1.2), textcoords='offset points')
+        ha='center', va='bottom', xytext=(0, 1.2), textcoords='offset points', color=colors[7])
     plt.annotate(labels[8], (iter_times[8], params_trained[8]), fontsize=label_fontsize, 
-        ha='center', va='bottom')
+        ha='center', va='bottom', color=colors[8])
 
     # Add axis labels
     plt.xlabel("Avg. Iteration Time (s)")
@@ -163,7 +168,10 @@ def plot_mem_time():
     plt.gca().spines['top'].set_visible(False)
     plt.gca().spines['right'].set_visible(False)
 
-    plt.savefig("figures/mem_time.png", dpi=300)
+    plt.legend().remove()
+
+    plt.savefig("figures/mem_time.png", bbox_inches='tight', dpi=300)
 
 if __name__ == "__main__":
+    # plot_val_loss()
     plot_mem_time()

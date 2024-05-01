@@ -98,8 +98,11 @@ def plot_val_loss():
     # show legend on the right of the plot 
     # plt.legend(ordered_handles, ordered_labels, loc='center right', 
     #             bbox_to_anchor=(1.6, 0.5), fontsize=12)
-    plt.legend(ordered_handles, ordered_labels, loc='upper right', 
+    legend = plt.legend(ordered_handles, ordered_labels, loc='upper right', 
                 fontsize=12)
+    
+    for i, text in enumerate(legend.get_texts()):
+        text.set_color(colors[order[i]])
 
     # Show the plot
     plt.savefig("figures/val_loss.png", bbox_inches='tight', dpi=300)
@@ -135,23 +138,23 @@ def plot_mem_time():
     # Add labels to data points
     label_fontsize=12
     plt.annotate(labels[0], (iter_times[0], params_trained[0]), fontsize=label_fontsize, 
-        ha='center', va='bottom', color=colors[0])
+        xytext=(-35, 12), textcoords='offset points', color=colors[0])
     plt.annotate(labels[1], (iter_times[1], params_trained[1]), fontsize=label_fontsize, 
-        xytext=(5, -3), textcoords='offset points', color=colors[1])
+        xytext=(6, -3), textcoords='offset points', color=colors[1])
     plt.annotate(labels[2], (iter_times[2], params_trained[2]), fontsize=label_fontsize, 
-        xytext=(5, -3), textcoords='offset points', color=colors[2])
+        xytext=(6, -3), textcoords='offset points', color=colors[2])
     plt.annotate(labels[3], (iter_times[3], params_trained[3]), fontsize=label_fontsize, 
-        ha='center', va='bottom', color=colors[3])
+        xytext=(-35, 12), textcoords='offset points', color=colors[3])
     plt.annotate(labels[4], (iter_times[4], params_trained[4]), fontsize=label_fontsize, 
-        ha='center', va='bottom', color=colors[4])
+        xytext=(-35, 12), textcoords='offset points', color=colors[4])
     plt.annotate(labels[5], (iter_times[5], params_trained[5]), fontsize=label_fontsize, 
         xytext=(-40, -15), textcoords='offset points', color=colors[5])
     plt.annotate(labels[6], (iter_times[6], params_trained[6]), fontsize=label_fontsize, 
         ha='center', va='bottom', xytext=(0.01, 3), textcoords='offset points', color=colors[6])
     plt.annotate(labels[7], (iter_times[7], params_trained[7]), fontsize=label_fontsize, 
-        ha='center', va='bottom', xytext=(0, 1.2), textcoords='offset points', color=colors[7])
+        ha='center', va='bottom', xytext=(0, 2), textcoords='offset points', color=colors[7])
     plt.annotate(labels[8], (iter_times[8], params_trained[8]), fontsize=label_fontsize, 
-        ha='center', va='bottom', color=colors[8])
+        xytext=(-40, 12), textcoords='offset points', color=colors[8])
 
     # Add axis labels
     plt.xlabel("Avg. Iteration Time (s)")

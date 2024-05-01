@@ -13,3 +13,5 @@ venv/
 wandb/
 log/
 data/cnn_dailymail/*
+!data/cnn_dailymail/prepare.py
+figures/*

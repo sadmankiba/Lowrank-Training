@@ -1,3 +1,12 @@
+###################################################################################################
+# Comp Sci Big Data - Final Project
+# Spring 2024
+# Author: Laik Ruetten
+# sources: Pulled a lot from galore github and melo github, both papers that we cite in our report
+# Date: 04-30-2024
+###################################################################################################
+import sys
+
 import torch
 import torch.nn as nn
 from galore_torch import GaLoreAdamW, GaLoreAdamW8bit, GaLoreAdafactor
@@ -11,38 +20,6 @@ import torch
 from lora import LoRA_ViT_timm
 import torch.nn.functional as F
 
-num_categories = 9
-
-#img = torch.randn(16, 3, 224, 224)
-model = timm.create_model('vit_base_patch16_224', pretrained=True)
-lora_vit = LoRA_ViT_timm(vit_model=model, r=4, alpha=4, num_classes=num_categories)
-
-model = lora_vit.cuda()
-
-#logits = lora_vit(img)
-
-#probs = F.softmax(logits, dim=1)
-
-#print(probs)
-
-#preds = torch.argmax(probs, dim=1)
-
-#print(preds)
-
-#import transformers
-#from transformers import ViTModel
-#model = ViTModel.from_pretrained('google/vit-base-patch16-224-in21k').cuda()
-
-#for name, module in model.named_children():
-#    if isinstance(module, transformers.models.vit.modeling_vit.ViTLayer):
-#        # Replace each ViTLayer with a ModifiedViTBlock
-#        setattr(model, name, ModifiedViTBlock(module, bottleneck_dim=64))
-# Assuming 'model' is your pretrained Vision Transformer
-#intermediate_dim = 128  # You can tune this parameter
-
-# Replace the classifier with the low-rank adapter
-#model.fc = LowRankAdapter(768, intermediate_dim, num_categories)
-
 from tqdm import tqdm
 import numpy as np
 import torch
@@ -54,16 +31,35 @@ import torchvision.transforms as transforms
 import medmnist
 from medmnist import INFO, Evaluator
 
+###########################################
+###########################################
+# Hard coded value depending on the dataset used. Not very robust but I am just running tests
+num_categories = 9
+
+rank = 8
+
+model = timm.create_model('vit_base_patch16_224', pretrained=True)
+model = LoRA_ViT_timm(vit_model=model, r=rank, alpha=4, num_classes=num_categories)
+
+num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+print(f"trainable parameters: {num_params/2**20:.3f}M")
+num_params = sum(p.numel() for p in model.parameters())
+print(f"total parameters: {num_params/2**20:.3f}M")
+
+model = model.cuda()
+###########################################
+# data and model info and parameters
+###########################################
+NUM_EPOCHS = 1
+BATCH_SIZE = 128
+lr = 0.005
+
 data_flag = 'pathmnist'
 #data_flag = 'breastmnist'
 #data_flag = 'chestmnist'
 #data_flag = 'pneumoniamnist'
 #data_flag = 'breastmnist'
 download = True
-
-NUM_EPOCHS = 4
-BATCH_SIZE = 64
-lr = 0.005
 
 info = INFO[data_flag]
 task = info['task']
@@ -79,17 +75,6 @@ data_transform = transforms.Compose([
 ])
 
 # load the data
-#train_dataset = DataClass(split='train', transform=data_transform, download=download)
-#test_dataset = DataClass(split='test', transform=data_transform, download=download)
-
-#pil_dataset = DataClass(split='train', download=download)
-
-download = True
-
-info = INFO[data_flag]
-#DataClass = getattr(medmnist, info['python_class'])
-
-# load the data
 train_dataset = DataClass(split='train', transform=data_transform, download=download, size=224, mmap_mode='r')
 test_dataset = DataClass(split='test', transform=data_transform, download=download, size=224, mmap_mode='r')
 
@@ -102,8 +87,15 @@ print(train_dataset)
 print("===================")
 print(test_dataset)
 
+###########################################
+
 criterion = nn.CrossEntropyLoss()
 
+###########################################
+# This function is only here because this code is a hodge podge of different code stuck together.
+# It's here to make GaLore work. Interfacing with the command line for actual arguments like 
+# parse_args normally is used has not been tested or even intentional
+###########################################
 def parse_args(args):
     parser = argparse.ArgumentParser()
 
@@ -157,9 +149,12 @@ def parse_args(args):
 
 args = parse_args(None)
 
-#optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9)
+###########################################
+# Replace SGD with GaLore optimizer
+# optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9)
 # make parameters with "rank" to a single group, if param_name has "mlp" or "attn"
 galore_params = []
+###########################################
 target_modules_list = ["attn", "mlp"]
 for module_name, module in model.named_modules():
     if not isinstance(module, nn.Linear):
@@ -179,8 +174,11 @@ param_groups = [{'params': regular_params},
 
 optimizer = GaLoreAdamW(param_groups, lr=0.01)
 
-# train
+###########################################
 
+
+
+### Train
 for epoch in range(NUM_EPOCHS):
     train_correct = 0
     train_total = 0
@@ -239,10 +237,10 @@ with torch.no_grad():
     #metrics = evaluator.evaluate(y_score)
 
     accuracy = accuracy_score(y_true, y_score)
-    print("acc: ", accuracy)
-    fpr, tpr, thresholds = roc_curve(y_true, y_score)
-    auc = auc(fpr, tpr)
+    print("rank: ", rank, "acc: ", accuracy)
+    #fpr, tpr, thresholds = roc_curve(y_true, y_score)
+    #auc = auc(fpr, tpr)
 
-    print("acc: ", accuracy, "auc: ", auc)
+    #print("acc: ", accuracy, "auc: ", auc)
 
     #print('%s  auc: %.3f  acc: %.3f' % (split, *metrics))

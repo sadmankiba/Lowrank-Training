@@ -357,7 +357,7 @@ if __name__ == "__main__":
     print(model)
 
     train_util = TrainUtil(model, config)
-    create_log_file()
+    
 
     if freeze_n > 0:
         model.freeze_layers(['transformer.wte', 'transformer.wpe'] + [f'transformer.h.{n}' for n in range(freeze_n)])
@@ -371,6 +371,8 @@ if __name__ == "__main__":
     print(f"Trainable parameters: {trainable_params/1e6:.2f} M")
     config['trainable_params'] = trainable_params
 
+    create_log_file()
+    
     train_model(model, model_args, train_util)
 
     generate(model, train_util)

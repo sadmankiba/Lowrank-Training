@@ -31,6 +31,8 @@ import torchvision.transforms as transforms
 import medmnist
 from medmnist import INFO, Evaluator
 
+from torch.utils.tensorboard import SummaryWriter
+
 ###########################################
 ###########################################
 # Hard coded value depending on the dataset used. Not very robust but I am just running tests
@@ -41,6 +43,7 @@ rank = 8
 model = timm.create_model('vit_base_patch16_224', pretrained=True)
 model = LoRA_ViT_timm(vit_model=model, r=rank, alpha=4, num_classes=num_categories)
 
+
 num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 print(f"trainable parameters: {num_params/2**20:.3f}M")
 num_params = sum(p.numel() for p in model.parameters())
@@ -50,7 +53,7 @@ model = model.cuda()
 ###########################################
 # data and model info and parameters
 ###########################################
-NUM_EPOCHS = 1
+NUM_EPOCHS = 10
 BATCH_SIZE = 128
 lr = 0.005
 
@@ -132,7 +135,7 @@ def parse_args(args):
     parser.add_argument("--beta1", type=float, default=0.0)
     
     # GaLore parameters
-    parser.add_argument("--rank", type=int, default=128)
+#    parser.add_argument("--rank", type=int, default=256)
     parser.add_argument("--update_proj_gap", type=int, default=50)
     parser.add_argument("--galore_scale", type=float, default=1.0)
     parser.add_argument("--proj_type", type=str, default="std")
@@ -170,13 +173,21 @@ id_galore_params = [id(p) for p in galore_params]
 regular_params = [p for p in model.parameters() if id(p) not in id_galore_params]
 # then call galore_adamw
 param_groups = [{'params': regular_params}, 
-                {'params': galore_params, 'rank': args.rank, 'update_proj_gap': args.update_proj_gap, 'scale': args.galore_scale, 'proj_type': args.proj_type}]
+                {'params': galore_params, 'rank': 512, 'update_proj_gap': args.update_proj_gap, 'scale': args.galore_scale, 'proj_type': args.proj_type}]
 
-optimizer = GaLoreAdamW(param_groups, lr=0.01)
 
+num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+print(f"trainable parameters: {num_params/2**20:.3f}M")
+num_params = sum(p.numel() for p in model.parameters())
+print(f"total parameters: {num_params/2**20:.3f}M")
+
+optimizer = GaLoreAdamW(param_groups, lr=lr)
+#optimizer = optim.Adam(model.parameters(), lr=0.01)
 ###########################################
 
 
+# Initialize the SummaryWriter
+writer = SummaryWriter('runs/experiment_name')
 
 ### Train
 for epoch in range(NUM_EPOCHS):
@@ -186,7 +197,7 @@ for epoch in range(NUM_EPOCHS):
     test_total = 0
 
     model.train()
-    for inputs, targets in tqdm(train_loader):
+    for batch_idx, (inputs, targets) in enumerate(tqdm(train_loader)):
         # forward + backward + optimize
         optimizer.zero_grad()
         outputs = model(inputs.cuda())
@@ -201,6 +212,12 @@ for epoch in range(NUM_EPOCHS):
 
         loss.backward()
         optimizer.step()
+
+        # Record loss to TensorBoard - record every batch or less frequently as needed
+        writer.add_scalar('Loss/train', loss.item(), epoch * len(train_loader) + batch_idx)
+
+# Close the writer when done to free up resources
+writer.close()
 
 split = 'test'
 

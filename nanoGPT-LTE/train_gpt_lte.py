@@ -44,6 +44,7 @@ bias = False       # do we use bias inside LayerNorm and Linear layers?
 # LTE model settings
 wrap_lte = True
 freeze_n = 0      # freeze first n transformer blocks
+skip_attn = False
 skip_logit = True 
 skip_mlp = True 
 lora_r = 32
@@ -223,6 +224,8 @@ def wrap_with_lte(model):
         replica_layers=[module.transformer.wte, module.transformer.wpe, module.transformer.ln_f] 
             + [ module.transformer.h[i].ln_1 for i in range(len(module.transformer.h))]
             + [ module.transformer.h[i].ln_2 for i in range(len(module.transformer.h))]
+            + ( [ module.transformer.h[i].attn.c_attn for i in range(len(module.transformer.h))] if skip_attn else [] )
+            + ( [ module.transformer.h[i].attn.c_proj for i in range(len(module.transformer.h))] if skip_attn else [] )
             + ( [ module.lm_head] if skip_logit else [] ) 
             + ( [ module.transformer.h[i].mlp.c_fc for i in range(len(module.transformer.h))] if skip_mlp else [] )
             + ( [ module.transformer.h[i].mlp.c_proj for i in range(len(module.transformer.h))] if skip_mlp else [] )

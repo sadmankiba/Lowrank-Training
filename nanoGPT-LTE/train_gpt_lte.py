@@ -334,14 +334,12 @@ def train_model(model, model_args, train_util):
             break
 
 def generate(model, train_util):
-    train_util.batch_size = 1
-    train_util.block_size = 32
     x, y = train_util.get_batch('val')
-    print("x", ''.join(train_util.gpt2_decode(x[0])), 
-            "\ny", ''.join(train_util.gpt2_decode(y[0])))
+    print("x", (''.join(train_util.gpt2_decode(x[0])))[-100:], 
+            "\ny", (''.join(train_util.gpt2_decode(y[0])))[-100:])
 
     gen_y = model.generate(x, 50)
-    print("gen_y", ''.join(train_util.gpt2_decode(gen_y[0])))
+    print("gen_y", (''.join(train_util.gpt2_decode(gen_y[0])))[-300:])
 
 if __name__ == "__main__":
     print("in main")

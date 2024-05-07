@@ -158,6 +158,26 @@ pretrain_dmp_merge_sweep3() {
     done
 }
 
-pretrain_dmp_merge_sweep1
-pretrain_dmp_merge_sweep2
-pretrain_dmp_merge_sweep3
+pretrain_dmp_merge_replacements() {
+    lte_head="4"
+    lora_ranks="1 4 16 64"
+    skips="True False"
+
+    for lora_rank in $lora_ranks; do
+        for skip_attn in $skips; do
+            for skip_mlp in $skips; do
+                for skip_logit in $skips; do
+                    python3 train_gpt_lte.py config/train_gpt2_news_lte.py \
+                        --lte_heads=$lte_head --lora_r=$lora_rank --lte_mode="dmp" \
+                        --lora_alpha=$((4 * lora_rank)) --lte_merge_steps=10 \
+                        --skip_attn=$skip_attn --skip_mlp=$skip_mlp --skip_logit=$skip_logit \
+                        --max_iters=$max_iters --lr_decay_iters=$lr_decay_iters \
+                        --eval_interval=$eval_interval \
+                        --learning_rate=$learning_rate --min_lr=$min_lr
+                done
+            done
+        done
+    done
+}
+
+pretrain_dmp_merge_replacements

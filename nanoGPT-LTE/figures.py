@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 
 logging.basicConfig(level=logging.INFO)
@@ -186,7 +187,80 @@ def plot_mem_time():
     plt.legend().remove()
 
     plt.savefig("figures/mem_time.png", bbox_inches='tight', dpi=300)
+    plt.savefig("figures/mem_time.pdf", bbox_inches='tight', dpi=300)
+
+
+def plot_repl_loss_params():
+    """
+    Prompt: make a matplotlib plot with two subplots arranged 
+    vertically sharing the same x axis. Both subplots contain 
+    bar plots for 5 different xticks and three classes. The 
+    lower subplot shows feature1 and upper subplot shows feature2.
+    """
+    # Define the data
+    xticks = np.arange(1, 9)
+    xtick_names = ['No', 'A', 'M', 'L', 'AM', 'AL', 'ML', 'AML']
+    classes = ['Rank 1', 'Rank 4', 'Rank 64']
+    colors = ['lightsalmon', 'navajowhite', 'lightseagreen']
+
+    df = pd.read_csv("log/2024-05-07/repls.tsv", sep="\t", dtype={'Rank': str, 'Test Loss': float, 'Trainable Parameters (M)': float})
+    rank_col = "Rank"
+    loss_col = "Test Loss"
+    params_col = "Trainable Parameters (M)"
+    norepl_idx = (df[rank_col] == "No")
+    r1_idx = (df[rank_col] == "1")
+    r4_idx = (df[rank_col] == "4")
+    r64_idx = (df[rank_col] == "64")
+
+    feature1 = [df[r1_idx][loss_col], df[r4_idx][loss_col], df[r64_idx][loss_col]]
+    feature2 = [df[r1_idx][params_col], df[r4_idx][params_col], df[r64_idx][params_col]]
+
+    #Set font size
+    plt.rcParams.update({'font.size': 14})
+
+    # Create the figure and subplots
+    # plt.figure(figsize=(24, 6))
+    fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(12, 6))
+
+    # Plot the bar plots for loss
+    ax1.bar(xticks[0], df[norepl_idx][loss_col], label='W/o LoRA', width=0.25, color='lightsteelblue', zorder=1)
+    for (i, cls), offset in zip(enumerate(classes), [-0.25, 0, 0.25]):        
+        ax1.bar(xticks[1:] + offset, feature1[i], label=cls, width=0.25, color=colors[i], zorder=1)
+
+    # Plot the bar plots for #params
+    ax2.bar(xticks[0], df[norepl_idx][params_col], label='W/o LoRA', width=0.25, color='lightsteelblue', zorder=1)
+    for (i, cls), offset in zip(enumerate(classes), [-0.25, 0, 0.25]):
+        ax2.bar(xticks[1:] + offset, feature2[i], label=cls, width=0.25, color=colors[i], zorder=1)
+
+    # Set the labels and titles
+    ax1.set_ylabel('Test Loss')
+    ax2.set_ylabel('Params trained (M)')
+    ax2.set_xlabel('Layers replaced')
+
+    # Set y axis limits
+    ax1.set_ylim(6, 7.5)
+
+    # Set ax2 y ticks
+    ax2.set_yticks(np.arange(0, 150, 25))
+
+    # Set x ticks
+    ax1.set_xticks(xticks, xtick_names)
+
+    # Show y grids
+    ax1.grid(axis='y', linestyle='--', linewidth=0.5, zorder=0)
+    ax2.grid(axis='y', linestyle='--', linewidth=0.5, zorder=0)
+
+    # Add legends
+    ax1.legend(loc='upper center', bbox_to_anchor=(0.5, 1.3), ncol=4, fontsize=12)
+    
+    # Adjust the layout
+    plt.tight_layout()
+
+    # Save the plot
+    plt.savefig("figures/repl_loss_params.png", bbox_inches='tight', dpi=300)
+    plt.savefig("figures/repl_loss_params.pdf", bbox_inches='tight', dpi=300)
 
 if __name__ == "__main__":
-    # plot_val_loss()
+    plot_val_loss()
     plot_mem_time()
+    # plot_repl_loss_params()

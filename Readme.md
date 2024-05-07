@@ -1,4 +1,3 @@
-note: At this point in the project, "Parallel-LoRA" is a bit of a misnomer, as this is indicative of our intentions at the start of the project, but it has since evolved to be much more than that
 
 # LTE tasks
 sources: 

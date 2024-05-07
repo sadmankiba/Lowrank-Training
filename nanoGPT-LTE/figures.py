@@ -14,23 +14,35 @@ class datafile:
     lora_rank: int
     file_name: str
 
-datafiles = [
-    datafile(False, "", -1, -1, "2024-04-30-23-29-30"),
-    datafile(True, "mhlora", 1, 4, "2024-04-30-18-43-36"),
-    datafile(True, "mhlora", 1, 64, "2024-04-30-18-53-05"),
-    datafile(True, "mhlora", 4, 4, "2024-04-30-19-03-23"),
-    datafile(True, "mhlora", 4, 64, "2024-04-30-19-14-24"),
-    datafile(True, "dmp", 1, 4, "2024-04-30-23-38-45"),
-    datafile(True, "dmp", 1, 64, "2024-04-30-23-47-58"),
-    datafile(True, "dmp", 4, 4, "2024-04-30-23-57-14"),
-    datafile(True, "dmp", 4, 64, "2024-05-01-00-06-37"), 
+config2_datafiles = {
+    "wolora": datafile(False, "", -1, -1, "2024-04-30-23-29-30"),
+    "sh1r4": datafile(True, "mhlora", 1, 4, "2024-04-30-18-43-36"),
+    "sh1r64": datafile(True, "mhlora", 1, 64, "2024-04-30-18-53-05"),
+    "sh4r4": datafile(True, "mhlora", 4, 4, "2024-04-30-19-03-23"),
+    "sh4r64": datafile(True, "mhlora", 4, 64, "2024-04-30-19-14-24"),
+    "ph1r4": datafile(True, "dmp", 1, 4, "2024-04-30-23-38-45"),
+    "ph1r64": datafile(True, "dmp", 1, 64, "2024-04-30-23-47-58"),
+    "ph4r4": datafile(True, "dmp", 4, 4, "2024-04-30-23-57-14"),
+    "ph4r64": datafile(True, "dmp", 4, 64, "2024-05-01-00-06-37"), 
+}
+
+config2_loss_mem_datafiles = [ 
+    config2_datafiles["wolora"],
+    config2_datafiles["sh1r4"],
+    config2_datafiles["sh1r64"],
+    config2_datafiles["sh4r4"],
+    config2_datafiles["sh4r64"],
+    config2_datafiles["ph1r4"],
+    config2_datafiles["ph1r64"],
+    config2_datafiles["ph4r4"],
+    config2_datafiles["ph4r64"],
 ]
 
 def get_measures():
-    config_dfs = [None] * len(datafiles)
-    data_dfs = [None] * len(datafiles)
+    config_dfs = [None] * len(config2_loss_mem_datafiles)
+    data_dfs = [None] * len(config2_loss_mem_datafiles)
 
-    for i, datafile in enumerate(datafiles):
+    for i, datafile in enumerate(config2_loss_mem_datafiles):
         logging.info(f"Processing {datafile.file_name}")
 
         file_path = f"log/{datafile.file_name[:10]}/{datafile.file_name}.csv"
@@ -51,7 +63,7 @@ def get_measures():
     return config_dfs, data_dfs
 
 def plot_val_loss():
-    ys = [None] * len(datafiles)
+    ys = [None] * len(config2_loss_mem_datafiles)
     
     _, data_dfs = get_measures()
     for i in range(len(ys)):
@@ -64,11 +76,11 @@ def plot_val_loss():
     handles = []
     labels = []
     for i, y in enumerate(ys):
-        if datafiles[i].has_lte == False:
+        if config2_loss_mem_datafiles[i].has_lte == False:
             label = "W/o LoRA"
         else:
-            label = f"{'Par-Merge' if datafiles[i].lte_mode == 'dmp' else 'Seq'}" + \
-                f" (H{datafiles[i].lte_heads} R{datafiles[i].lora_rank})"
+            label = f"{'Par-Merge' if config2_loss_mem_datafiles[i].lte_mode == 'dmp' else 'Seq'}" + \
+                f" (H{config2_loss_mem_datafiles[i].lte_heads} R{config2_loss_mem_datafiles[i].lora_rank})"
         
         line, = plt.plot(x, y, label=label, linewidth=2.5)
         handles.append(line)
@@ -114,7 +126,7 @@ def plot_mem_time():
         # params_trained[i] = cdf.iloc[0]['params_trained']
         iter_times.append(ddf['train_time'].tolist()[-1] / 200)
     
-    for datafile in datafiles:
+    for datafile in config2_loss_mem_datafiles:
         if datafile.has_lte == False:
             labels.append("W/o LoRA")
         else:

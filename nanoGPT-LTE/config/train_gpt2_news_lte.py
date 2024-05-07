@@ -12,7 +12,7 @@ init_from = "scratch"
 dataset = "cnn_dailymail"
 max_iters = 401
 lr_decay_iters = 401
-eval_batches = 20 
+eval_batches = 30 
 eval_interval = 10
 log_interval = 20
 batch_size = 8
@@ -27,6 +27,7 @@ lora_alpha = 128
 lte_heads = 4
 lte_mode = "dmp"
 lte_merge_steps = 10
+skip_attn = False
 skip_mlp = True
 skip_logit = True
 

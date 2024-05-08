@@ -27,6 +27,13 @@ https://github.com/JamesQFreeman/LoRA-ViT
 
 ltegalorevit.py - Combined version of lte and galore that we got mostly working.
 
+## Contributors
+
+* [Iván Jaen Márquez](https://github.com/ivanjaenm)
+* [Laik Ruetten](https://github.com/ivanjaenm)
+* [Sadman Sakib](https://github.com/sadmankiba)
+* [Zheyang Xiong](https://github.com/zxiong44)
+
 ## References 
 
 1. LoRA: Low-rank adaptation of large language models. E. J. Hu, Y. Shen, P. Wallis, Z. Allen-Zhu, Y. Li, W. Chen, and T.-Y. Liu. arXiv preprint arXiv:2106.09685, 2021.

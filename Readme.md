@@ -10,6 +10,7 @@ Low-rank adaptation (LoRA) was originally proposed for fine-tuning by reparamete
 sources: 
 * [nanoGPT](https://github.com/karpathy/nanoGPT)
 * [nanoGPT-LoRA](https://github.com/danielgrittner/nanoGPT-LoRA)
+* [LTE](https://github.com/minyoungg/LTE)
 
 Initial setup (also see source repo):
 1. run python3 data/cnn_dailymail/prepare.py

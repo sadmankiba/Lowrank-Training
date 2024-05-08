@@ -247,8 +247,8 @@ def plot_repl_loss_params():
     ax1.set_xticks(xticks, xtick_names)
 
     # Show y grids
-    ax1.grid(axis='y', linestyle='--', linewidth=0.5, zorder=0)
-    ax2.grid(axis='y', linestyle='--', linewidth=0.5, zorder=0)
+    ax1.grid(axis='y', linestyle='--', linewidth=0.5, zorder=-10)
+    ax2.grid(axis='y', linestyle='--', linewidth=0.5, zorder=-10)
 
     # Add legends
     ax1.legend(loc='upper center', bbox_to_anchor=(0.5, 1.3), ncol=4, fontsize=12)
@@ -261,6 +261,6 @@ def plot_repl_loss_params():
     plt.savefig("figures/repl_loss_params.pdf", bbox_inches='tight', dpi=300)
 
 if __name__ == "__main__":
-    plot_val_loss()
-    plot_mem_time()
-    # plot_repl_loss_params()
+    # plot_val_loss()
+    # plot_mem_time()
+    plot_repl_loss_params()

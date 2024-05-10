@@ -7,7 +7,7 @@ Low-rank adaptation (LoRA) was originally proposed for fine-tuning by reparamete
 
 ## LTE tasks
 
-sources: 
+Sources: 
 * [nanoGPT](https://github.com/karpathy/nanoGPT)
 * [nanoGPT-LoRA](https://github.com/danielgrittner/nanoGPT-LoRA)
 * [LTE](https://github.com/minyoungg/LTE)
@@ -17,16 +17,21 @@ Initial setup (also see source repo):
 2. python3 train_gpt_lte.py
 
 ## GaLore tasks
-Our GaLore experiment were done by editing/referencing this repo 
-https://github.com/jiaweizzhao/GaLore
+
+Sources:
+*  [GaLore](https://github.com/jiaweizzhao/GaLore)
 
 ## LoRA Vision
-data used to train/finetune: https://medmnist.com/
 
-meloravit.py - A ViT model with LoRA adapters, mainly using MeLo implementation (GaLore optimizer also used)
-https://github.com/JamesQFreeman/LoRA-ViT
+Sources:
+* [LoRA-ViT](https://github.com/JamesQFreeman/LoRA-ViT)
 
-ltegalorevit.py - Combined version of lte and galore that we got mostly working.
+Dataset: 
+* [MedMNIST](https://medmnist.com/) 
+
+Source code:
+* `meloravit.py`: LoRA-ViT + MeLo + GaLore optimizer
+* `ltegalorevit.py`: Combined version of lte and galore that we got mostly working.
 
 ## Contributors
 
@@ -39,4 +44,4 @@ ltegalorevit.py - Combined version of lte and galore that we got mostly working.
 
 1. LoRA: Low-rank adaptation of large language models. E. J. Hu, Y. Shen, P. Wallis, Z. Allen-Zhu, Y. Li, W. Chen, and T.-Y. Liu. arXiv preprint arXiv:2106.09685, 2021.
 2. Training neural networks from scratch with parallel low-rank adapters. M. Huh, B. Cheung, J. Bernstein, P. Isola, and P. Agrawal. arXiv preprint arXiv:2402.16828, 2024.
-3. Galore: Memory-efficient LLM training by gradient low-rank projection. J. Zhao, Z. Zhang, B. Chen, Z. Wang, A. Anandkumar, and Y. Tian, 2024.
+3. Galore: Memory-efficient LLM training by gradient low-rank projection. J. Zhao, Z. Zhang, B. Chen, Z. Wang, A. Anandkumar, and Y. Tian. arXiv preprint arXiv:2403.03507, 2024.
